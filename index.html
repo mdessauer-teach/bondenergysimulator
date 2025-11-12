@@ -4,22 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Endo/Exothermic Bond Energy Simulator</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind + Fonts -->
+  <script src="https://cdn.tailwindcss.com" defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+
+  <!-- React + Babel + Recharts (deferred for GitHub Pages stability) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" defer></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" defer></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js" defer></script>
+  <script src="https://unpkg.com/recharts/umd/Recharts.min.js" defer></script>
+
   <style>
     body { font-family: 'Inter', sans-serif; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
-  <div id="root"></div>
+  <div id="root" class="p-6 text-center text-slate-600">Loading simulator...</div>
 
+  <!-- Main React App -->
   <script type="text/babel">
+    console.log("✅ React simulator script running");
+
+    // Check if React + Babel loaded correctly
+    if (!window.React || !window.ReactDOM || !window.Babel) {
+      document.getElementById("root").innerHTML = "<p style='color:red'>⚠️ React or Babel failed to load. Please refresh.</p>";
+      throw new Error("React/Babel not loaded");
+    }
+
     const { useState, useMemo } = React;
     const { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } = Recharts;
 
