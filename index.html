@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bond Energy Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div id="root" class="p-8"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+      const [reaction, setReaction] = useState("");
+      const reactions = [
+        "H2 + Cl2 → 2 HCl",
+        "CH4 + 2 O2 → CO2 + 2 H2O",
+        "N2 + 3 H2 → 2 NH3",
+        "2 H2O → 2 H2 + O2"
+      ];
+      return (
+        <div className="max-w-xl mx-auto text-center">
+          <h1 className="text-3xl font-bold mb-4 text-blue-700">Bond Energy Simulator</h1>
+          <p className="text-gray-600 mb-6">Select a reaction to analyze bond energies.</p>
+          <select className="border p-2 rounded mb-6" value={reaction} onChange={(e)=>setReaction(e.target.value)}>
+            <option value="">-- Choose a reaction --</option>
+            {reactions.map((r,i)=><option key={i}>{r}</option>)}
+          </select>
+          {reaction && (
+            <div className="p-4 bg-white rounded shadow">
+              <h2 className="font-semibold mb-2">Selected Reaction:</h2>
+              <p>{reaction}</p>
+              <p className="text-green-600 mt-2">Now add bond counting and energy steps here.</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
