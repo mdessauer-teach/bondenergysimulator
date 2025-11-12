@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Endo/Exothermic Bond Energy Simulator</title>
 
-  <!-- Tailwind -->
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     body { font-family: 'Inter', sans-serif; background:#f8fafc; }
     .bar { height:30px; border-radius:8px; transition:width .6s ease-in-out; }
@@ -20,6 +19,7 @@
       background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; }
   </style>
 </head>
+
 <body class="text-slate-900">
   <div class="max-w-6xl mx-auto p-6 space-y-8">
     <h1 class="text-3xl font-bold text-blue-700 text-center">
@@ -29,13 +29,13 @@
       Use bond energies (kJ/mol) to calculate ΣE broken and ΣE formed, then determine whether the reaction is endothermic or exothermic.
     </p>
 
-    <!-- Step 1 — Reaction Presets -->
+    <!-- Step 1 -->
     <div class="bg-white rounded-2xl shadow p-4">
       <h2 class="font-semibold mb-2">Step 1 — Choose a Reaction</h2>
       <div id="preset-buttons" class="space-y-2"></div>
     </div>
 
-    <!-- Step 2 — Interactive Molecules Panel -->
+    <!-- Step 2 -->
     <div id="molecule-panel" class="bg-white rounded-2xl shadow p-4 hidden">
       <h2 class="font-semibold mb-4">Step 2 — Model Breaking and Forming Bonds</h2>
       <div id="svg-container" class="flex justify-center"></div>
@@ -46,7 +46,7 @@
       </div>
     </div>
 
-    <!-- Step 3 — Energy Summary -->
+    <!-- Step 3 -->
     <div id="summary" class="bg-white rounded-2xl shadow p-4 hidden">
       <h2 class="font-semibold mb-2">Step 3 — Energy Summary</h2>
       <div class="h-64 flex flex-col justify-center gap-4">
@@ -62,7 +62,7 @@
       <p id="deltaH" class="mt-2 font-semibold"></p>
     </div>
 
-    <!-- Step 4 — Student Entry and Check -->
+    <!-- Step 4 -->
     <div id="student-section" class="bg-white rounded-2xl shadow p-4 hidden">
       <h2 class="font-semibold mb-2">Step 4 — Student Calculation Pad</h2>
       <div class="grid md:grid-cols-3 gap-4">
@@ -85,7 +85,7 @@
     </div>
   </div>
 
-  <!-- Modal for Reference Bond Energies -->
+  <!-- Modal -->
   <div id="modal" class="modal-bg hidden">
     <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-6 relative">
       <button id="close-modal" class="absolute top-2 right-3 text-xl font-bold text-slate-600">&times;</button>
@@ -110,183 +110,97 @@
       </table>
     </div>
   </div>
-<script>
-/* ========== DATA DEFINITIONS ========== */
-const reactions = {
-  "hcl": {
-    name: "H₂ + Cl₂ → 2 HCl",
-    reactants: [
-      { atoms:[{x:40,y:60,label:"H"},{x:100,y:60,label:"H"}], bonds:[["H","H"]] },
-      { atoms:[{x:180,y:60,label:"Cl"},{x:260,y:60,label:"Cl"}], bonds:[["Cl","Cl"]] }
-    ],
-    products: [
-      { atoms:[{x:360,y:60,label:"H"},{x:420,y:60,label:"Cl"}], bonds:[["H","Cl"]] },
-      { atoms:[{x:480,y:60,label:"H"},{x:540,y:60,label:"Cl"}], bonds:[["H","Cl"]] }
-    ]
-  },
-  "combustion": {
-    name:"CH₄ + 2 O₂ → CO₂ + 2 H₂O",
-    reactants:[
-      { atoms:[{x:80,y:70,label:"C"},
-               {x:40,y:40,label:"H"},{x:120,y:40,label:"H"},
-               {x:40,y:100,label:"H"},{x:120,y:100,label:"H"}],
-        bonds:[["C","H"],["C","H"],["C","H"],["C","H"]] },
-      { atoms:[{x:200,y:60,label:"O"},{x:240,y:60,label:"O"}], bonds:[["O","O"]] },
-      { atoms:[{x:280,y:60,label:"O"},{x:320,y:60,label:"O"}], bonds:[["O","O"]] }
-    ],
-    products:[
-      { atoms:[{x:420,y:70,label:"C"},{x:460,y:40,label:"O"},{x:460,y:100,label:"O"}],
-        bonds:[["C","O"],["C","O"]] },
-      { atoms:[{x:520,y:60,label:"H"},{x:560,y:40,label:"O"},{x:560,y:80,label:"H"}],
-        bonds:[["O","H"],["O","H"]] },
-      { atoms:[{x:600,y:60,label:"H"},{x:640,y:40,label:"O"},{x:640,y:80,label:"H"}],
-        bonds:[["O","H"],["O","H"]] }
-    ]
-  },
-  "haber": {
-    name:"N₂ + 3 H₂ → 2 NH₃",
-    reactants:[
-      { atoms:[{x:60,y:60,label:"N"},{x:120,y:60,label:"N"}], bonds:[["N","N"]] },
-      { atoms:[{x:180,y:40,label:"H"},{x:240,y:40,label:"H"}], bonds:[["H","H"]] },
-      { atoms:[{x:180,y:80,label:"H"},{x:240,y:80,label:"H"}], bonds:[["H","H"]] },
-      { atoms:[{x:180,y:120,label:"H"},{x:240,y:120,label:"H"}], bonds:[["H","H"]] }
-    ],
-    products:[
-      { atoms:[{x:320,y:60,label:"N"},{x:360,y:40,label:"H"},{x:360,y:80,label:"H"},{x:360,y:100,label:"H"}],
-        bonds:[["N","H"],["N","H"],["N","H"]] },
-      { atoms:[{x:420,y:60,label:"N"},{x:460,y:40,label:"H"},{x:460,y:80,label:"H"},{x:460,y:100,label:"H"}],
-        bonds:[["N","H"],["N","H"],["N","H"]] }
-    ]
-  },
-  "water_split": {
-    name:"2 H₂O → 2 H₂ + O₂",
-    reactants:[
-      { atoms:[{x:80,y:60,label:"O"},{x:40,y:40,label:"H"},{x:40,y:80,label:"H"}],
-        bonds:[["O","H"],["O","H"]] },
-      { atoms:[{x:160,y:60,label:"O"},{x:120,y:40,label:"H"},{x:120,y:80,label:"H"}],
-        bonds:[["O","H"],["O","H"]] }
-    ],
-    products:[
-      { atoms:[{x:260,y:60,label:"H"},{x:300,y:60,label:"H"}], bonds:[["H","H"]] },
-      { atoms:[{x:340,y:60,label:"O"},{x:400,y:60,label:"O"}], bonds:[["O","O"]] }
-    ]
-  },
-  "ethanol_combustion": {
-    name:"C₂H₅OH + 3 O₂ → 2 CO₂ + 3 H₂O",
-    reactants:[
-      { atoms:[{x:60,y:60,label:"C"},{x:100,y:60,label:"C"},
-               {x:40,y:40,label:"H"},{x:40,y:80,label:"H"},
-               {x:120,y:40,label:"H"},{x:120,y:80,label:"H"},
-               {x:160,y:60,label:"O"},{x:180,y:60,label:"H"}],
-        bonds:[["C","C"],["C","H"],["C","H"],["C","H"],["C","O"],["O","H"]] },
-      { atoms:[{x:220,y:40,label:"O"},{x:260,y:40,label:"O"}], bonds:[["O","O"]] },
-      { atoms:[{x:220,y:80,label:"O"},{x:260,y:80,label:"O"}], bonds:[["O","O"]] },
-      { atoms:[{x:220,y:120,label:"O"},{x:260,y:120,label:"O"}], bonds:[["O","O"]] }
-    ],
-    products:[
-      { atoms:[{x:340,y:60,label:"C"},{x:380,y:40,label:"O"},{x:380,y:80,label:"O"}],
-        bonds:[["C","O"],["C","O"]] },
-      { atoms:[{x:420,y:60,label:"C"},{x:460,y:40,label:"O"},{x:460,y:80,label:"O"}],
-        bonds:[["C","O"],["C","O"]] },
-      { atoms:[{x:520,y:60,label:"H"},{x:560,y:40,label:"O"},{x:560,y:80,label:"H"}],
-        bonds:[["O","H"],["O","H"]] },
-      { atoms:[{x:600,y:60,label:"H"},{x:640,y:40,label:"O"},{x:640,y:80,label:"H"}],
-        bonds:[["O","H"],["O","H"]] },
-      { atoms:[{x:680,y:60,label:"H"},{x:720,y:40,label:"O"},{x:720,y:80,label:"H"}],
-        bonds:[["O","H"],["O","H"]] }
-    ]
-  }
-};
 
-let currentReaction = null;
-let bonds = [];
-let broken = 0, formed = 0;
+  <!-- JavaScript -->
+  <script>
+    const reactions = {
+      hcl: {
+        name: "H₂ + Cl₂ → 2 HCl",
+        reactants: [{ atoms:[{x:0,y:100,label:"H"}], bonds:[["H","H"]] }, { atoms:[{x:0,y:100,label:"Cl"}], bonds:[["Cl","Cl"]] }],
+        products: [{ atoms:[{x:0,y:100,label:"H"}], bonds:[["H","Cl"]] }]
+      },
+      combustion: {
+        name: "CH₄ + 2 O₂ → CO₂ + 2 H₂O",
+        reactants: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","H"],["C","H"],["C","H"],["C","H"]] },
+                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","O"]] }],
+        products: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","O"],["C","O"]] },
+                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","H"],["O","H"]] }]
+      },
+      haber: {
+        name: "N₂ + 3 H₂ → 2 NH₃",
+        reactants: [{ atoms:[{x:0,y:100,label:"N"}], bonds:[["N","N"]] },
+                   { atoms:[{x:0,y:100,label:"H"}], bonds:[["H","H"]] }],
+        products: [{ atoms:[{x:0,y:100,label:"N"}], bonds:[["N","H"],["N","H"],["N","H"]] }]
+      },
+      water_split: {
+        name: "2 H₂O → 2 H₂ + O₂",
+        reactants: [{ atoms:[{x:0,y:100,label:"O"}], bonds:[["O","H"],["O","H"]] }],
+        products: [{ atoms:[{x:0,y:100,label:"H"}], bonds:[["H","H"]] },
+                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","O"]] }]
+      },
+      ethanol_combustion: {
+        name: "C₂H₅OH + 3 O₂ → 2 CO₂ + 3 H₂O",
+        reactants: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","C"],["C","H"],["C","H"],["C","H"]] },
+                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","O"]] }],
+        products: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","O"],["C","O"]] },
+                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","H"],["O","H"]] }]
+      }
+    };
 
-/* ========== HELPER FUNCTIONS ========== */
-function el(tag,attrs={}){const e=document.createElement(tag);Object.assign(e,attrs);return e;}
-function clear(id){document.getElementById(id).innerHTML='';}
+    const el = (t,a={}) => Object.assign(document.createElement(t),a);
+    let bonds=[];
 
-/* ========== DRAW MOLECULES ========== */
-/* ========== DRAW MOLECULES (BALL-AND-STICK STYLE) ========== */
-function drawReaction(reac) {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("width", "820");
-  svg.setAttribute("height", "200");
-  bonds = [];
+    function drawReaction(reac){
+      const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+      svg.setAttribute("width","820");
+      svg.setAttribute("height","200");
+      bonds=[];
+      const atomColors={H:"#ffffff",C:"#9ca3af",O:"#ef4444",N:"#3b82f6",Cl:"#22c55e"};
+      function drawMol(mol,color,offsetX=0){
+        const center=mol.atoms[0]; const r=40;
+        const angles=[0,120,240,60,180,300]; let i=0;
+        const placed=[{...center,x:center.x+offsetX,y:center.y}];
+        mol.bonds.forEach(b=>{
+          const base=placed[0];
+          const th=(angles[i++]*Math.PI)/180;
+          const x=base.x+r*Math.cos(th),y=base.y+r*Math.sin(th);
+          const a2={x,y,label:b[1]};
+          placed.push(a2);
+          const line=document.createElementNS("http://www.w3.org/2000/svg","line");
+          line.setAttribute("x1",base.x); line.setAttribute("y1",base.y);
+          line.setAttribute("x2",a2.x); line.setAttribute("y2",a2.y);
+          line.setAttribute("stroke",color); line.setAttribute("stroke-width","3");
+          svg.append(line);
+        });
+        placed.forEach(a=>{
+          const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+          c.setAttribute("cx",a.x); c.setAttribute("cy",a.y);
+          c.setAttribute("r","14"); c.setAttribute("fill",atomColors[a.label]||"#e5e7eb");
+          c.setAttribute("stroke","#334155"); svg.append(c);
+          const t=document.createElementNS("http://www.w3.org/2000/svg","text");
+          t.setAttribute("x",a.x-5); t.setAttribute("y",a.y+5); t.textContent=a.label;
+          svg.append(t);
+        });
+      }
+      let xOffset=0;
+      reac.reactants.forEach(m=>{drawMol(m,"#2563eb",xOffset);xOffset+=150});
+      xOffset+=60;
+      reac.products.forEach(m=>{drawMol(m,"#16a34a",xOffset);xOffset+=150});
+      document.getElementById("svg-container").innerHTML="";
+      document.getElementById("svg-container").append(svg);
+    }
 
-  const atomColors = { H: "#ffffff", C: "#9ca3af", O: "#ef4444", N: "#3b82f6", Cl: "#22c55e" };
+    function renderPresets(){
+      const div=document.getElementById("preset-buttons");
+      div.innerHTML="";
+      Object.entries(reactions).forEach(([id,obj])=>{
+        const btn=el("button",{className:"w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200",textContent:obj.name});
+        btn.onclick=()=>{document.getElementById("molecule-panel").classList.remove("hidden");drawReaction(obj);};
+        div.append(btn);
+      });
+    }
 
-  // helper to draw one molecule centered around first atom
-  function drawMol(mol, color, offsetX = 0) {
-    const center = mol.atoms[0]; // first atom is anchor
-    const r = 40; // bond length
-    const angles = [0, 120, 240, 60, 180, 300]; // for spacing
-    let angleIndex = 0;
-
-    const placed = [{ ...center, x: center.x + offsetX, y: center.y }];
-    const atomMap = { [center.label + "0"]: placed[0] };
-
-    // place peripheral atoms radially
-    mol.bonds.forEach(b => {
-      const a1 = b[0], a2 = b[1];
-      const base = atomMap[a1 + "0"] || placed[0];
-      const theta = (angles[angleIndex++] * Math.PI) / 180;
-      const x = base.x + r * Math.cos(theta);
-      const y = base.y + r * Math.sin(theta);
-      const newAtom = { x, y, label: a2 };
-      atomMap[a2 + angleIndex] = newAtom;
-      placed.push(newAtom);
-    });
-
-    // draw bonds
-    mol.bonds.forEach((b, i) => {
-      const a1 = placed[0];
-      const a2 = placed[i + 1] || placed[0];
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      line.setAttribute("x1", a1.x);
-      line.setAttribute("y1", a1.y);
-      line.setAttribute("x2", a2.x);
-      line.setAttribute("y2", a2.y);
-      line.setAttribute("stroke", color);
-      line.setAttribute("stroke-width", "3");
-      line.setAttribute("stroke-linecap", "round");
-      line.classList.add("bond-line");
-
-      const input = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
-      input.setAttribute("x", (a1.x + a2.x) / 2 - 30);
-      input.setAttribute("y", (a1.y + a2.y) / 2 - 12);
-      input.setAttribute("width", "70");
-      input.setAttribute("height", "24");
-      const box = el("input", { className: "bond-input", type: "number", min: 100, max: 1000 });
-      input.append(box);
-      svg.append(line, input);
-      bonds.push({ line, box, broken: false, formed: false });
-    });
-
-    // draw atoms
-    placed.forEach(a => {
-      const circ = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      circ.setAttribute("cx", a.x);
-      circ.setAttribute("cy", a.y);
-      circ.setAttribute("r", 14);
-      circ.setAttribute("fill", atomColors[a.label] || "#e5e7eb");
-      circ.setAttribute("stroke", "#334155");
-      svg.append(circ);
-      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      text.setAttribute("x", a.x - 5);
-      text.setAttribute("y", a.y + 5);
-      text.setAttribute("font-size", "12");
-      text.setAttribute("fill", "#000");
-      text.textContent = a.label;
-      svg.append(text);
-    });
-  }
-
-  // render reactants and products offset
-  let xOffset = 0;
-  reac.reactants.forEach(m => { drawMol(m, "#2563eb", xOffset); xOffset += 150; });
-  xOffset += 60;
-  reac.products.forEach(m => { drawMol(m, "#16a34a", xOffset); xOffset += 150; });
-
-  document.getElementById("svg-container").append(svg);
-}
+    renderPresets();
+  </script>
+</body>
+</html>
