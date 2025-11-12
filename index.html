@@ -3,556 +3,202 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Bond Energy Simulator — No Build</title>
+  <title>Endo/Exothermic Bond Energy Simulator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
   <style>
-    body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial, "Apple Color Emoji","Segoe UI Emoji";}
+    body { font-family: 'Inter', sans-serif; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div id="root"></div>
 
-  <!-- React + ReactDOM UMD -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <!-- Babel for in-browser JSX transform -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Recharts UMD -->
-  <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
-
   <script type="text/babel">
-    const { useState, useMemo, useEffect } = React;
+    const { useState, useMemo } = React;
     const { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } = Recharts;
 
     const REACTANT_COLOR = "#0ea5e9"; // blue
     const PRODUCT_COLOR  = "#10b981"; // green
-
     const DEFAULT_BOND_ENERGIES = {
-      "H–H": 436, "Cl–Cl": 243, "H–Cl": 431, "O=O": 498, "O–H": 463,
-      "C–H": 413, "C–C": 348, "C=C": 614, "C=O": 799, "C–O": 358, "O–O": 146,
-      "N≡N": 945, "N–H": 391,
+      "H-H": 436, "Cl-Cl": 243, "H-Cl": 431, "O=O": 498, "O-H": 463,
+      "C-H": 413, "C-C": 348, "C=C": 614, "C=O": 799, "C-O": 358, "O-O": 146,
+      "N≡N": 945, "N-H": 391
     };
 
     const PRESETS = [
-      { id: "hcl", name: "H₂ + Cl₂ → 2 HCl", description: "Synthesis of hydrogen chloride" },
-      { id: "combustion", name: "CH₄ + 2 O₂ → CO₂ + 2 H₂O", description: "Combustion of methane" },
-      { id: "haber", name: "N₂ + 3 H₂ → 2 NH₃", description: "Haber process" },
-      { id: "water_split", name: "2 H₂O → 2 H₂ + O₂", description: "Electrolysis of water" },
-      { id: "ethene_hydrogenation", name: "C₂H₄ + H₂ → C₂H₆", description: "Hydrogenation of ethene" },
-      { id: "ethanol_combustion", name: "C₂H₅OH + 3 O₂ → 2 CO₂ + 3 H₂O", description: "Combustion of ethanol" },
-      { id: "ozone_formation", name: "3 O₂ → 2 O₃", description: "Ozone formation (simplified)" },
+      { id: "hcl", name: "H2 + Cl2 → 2 HCl", description: "Synthesis of hydrogen chloride" },
+      { id: "combustion", name: "CH4 + 2 O2 → CO2 + 2 H2O", description: "Combustion of methane" },
+      { id: "haber", name: "N2 + 3 H2 → 2 NH3", description: "Haber process" },
+      { id: "water_split", name: "2 H2O → 2 H2 + O2", description: "Electrolysis of water" },
+      { id: "ethanol_combustion", name: "C2H5OH + 3 O2 → 2 CO2 + 3 H2O", description: "Combustion of ethanol" },
     ];
 
-    const clampInt = (n) => {
-      const v = Number(n);
-      return Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
-    };
-    const uid = () => Math.random().toString(36).slice(2,8);
+    const clampInt = (n) => Math.max(0, Math.round(Number(n) || 0));
 
-    function sumEnergy(counts, energies){
-      let total = 0;
-      for (const k of Object.keys(counts)){
-        const c = Number(counts[k]) || 0;
-        const e = Object.prototype.hasOwnProperty.call(energies, k) ? energies[k] : 0;
-        total += c * (Number(e) || 0);
+    const sumEnergy = (counts, energies) =>
+      Object.entries(counts).reduce((s,[k,c]) => s + (energies[k] || 0)*(Number(c)||0), 0);
+
+    function App(){
+      const [bondEnergies] = useState({...DEFAULT_BOND_ENERGIES});
+      const [reactantCounts, setReactantCounts] = useState({});
+      const [productCounts, setProductCounts] = useState({});
+      const [preset, setPreset] = useState(null);
+      const [studentBroken, setStudentBroken] = useState("");
+      const [studentFormed, setStudentFormed] = useState("");
+      const [studentDelta, setStudentDelta] = useState("");
+      const [feedback, setFeedback] = useState("");
+
+      const chartData = useMemo(()=>{
+        const b = Number(studentBroken)||0, f = Number(studentFormed)||0;
+        return [
+          { label:"ΣE broken (reactants)", energy:b, fill:REACTANT_COLOR },
+          { label:"ΣE formed (products)",  energy:f, fill:PRODUCT_COLOR },
+        ];
+      },[studentBroken,studentFormed]);
+
+      const totalBroken = sumEnergy(reactantCounts,bondEnergies);
+      const totalFormed = sumEnergy(productCounts,bondEnergies);
+      const deltaH = totalBroken - totalFormed;
+      const reactionType = deltaH>0?"Endothermic":deltaH<0?"Exothermic":"Neutral";
+
+      const setCount = (side,key,val)=>{
+        const setter = side==="r"?setReactantCounts:setProductCounts;
+        setter(prev=>({...prev,[key]:clampInt(val)}));
       }
-      return total;
-    }
-    function classifyDeltaH(dH){
-      if (dH < 0) return "exo";
-      if (dH > 0) return "endo";
-      return "neutral";
-    }
 
-    // ------- Molecule helpers (SVG) -------
-    function A(id, element, x, y){ return { id, element, x, y }; }
-    function B(a, b, key, order=1){ return { id: uid(), a, b, key, order }; }
+      const inc=(side,key)=>setCount(side,key,(side==="r"?reactantCounts:productCounts)[key]+1);
+      const dec=(side,key)=>setCount(side,key,(side==="r"?reactantCounts:productCounts)[key]-1);
 
-    function buildModelsForPreset(presetId){
-      if (!presetId) return { reactants: [], products: [] };
-      const H2  = { name: "H₂",  atoms:[A("h1","H",30,40),A("h2","H",90,40)], bonds:[B("h1","h2","H–H",1)] };
-      const Cl2 = { name: "Cl₂", atoms:[A("c1","Cl",30,40),A("c2","Cl",90,40)], bonds:[B("c1","c2","Cl–Cl",1)] };
-      const HCl = { name: "H–Cl",atoms:[A("h","H",30,40),A("cl","Cl",90,40)], bonds:[B("h","cl","H–Cl",1)] };
-      const O2  = { name: "O₂",  atoms:[A("o1","O",30,40),A("o2","O",90,40)], bonds:[B("o1","o2","O=O",2)] };
-      const CO2 = { name: "CO₂", atoms:[A("o1","O",20,40),A("c","C",60,40),A("o2","O",100,40)], bonds:[B("o1","c","C=O",2),B("c","o2","C=O",2)] };
-      const H2O = { name: "H₂O", atoms:[A("o","O",60,30),A("h1","H",25,60),A("h2","H",95,60)], bonds:[B("o","h1","O–H",1),B("o","h2","O–H",1)] };
-      const CH4 = { name: "CH₄", atoms:[A("c","C",60,40),A("h1","H",20,15),A("h2","H",20,65),A("h3","H",100,20),A("h4","H",100,60)], bonds:[B("c","h1","C–H",1),B("c","h2","C–H",1),B("c","h3","C–H",1),B("c","h4","C–H",1)] };
-      const N2  = { name: "N₂",  atoms:[A("n1","N",30,40),A("n2","N",90,40)], bonds:[B("n1","n2","N≡N",3)] };
-      const NH3 = { name: "NH₃", atoms:[A("n","N",60,40),A("h1","H",20,20),A("h2","H",20,60),A("h3","H",100,40)], bonds:[B("n","h1","N–H",1),B("n","h2","N–H",1),B("n","h3","N–H",1)] };
-
-      switch (presetId){
-        case "hcl": return { reactants:[H2,Cl2], products:[HCl,HCl] };
-        case "combustion": return { reactants:[CH4,O2,O2], products:[CO2,H2O,H2O] };
-        case "haber": return { reactants:[N2,H2,H2,H2], products:[NH3,NH3] };
-        case "water_split": return { reactants:[H2O,H2O], products:[H2,O2] };
-        case "ethene_hydrogenation": {
-          const C2H4 = { name:"C2H4 (ethene)", atoms:[A("c1","C",40,40),A("c2","C",80,40),A("h1","H",20,20),A("h2","H",20,60),A("h3","H",100,20),A("h4","H",100,60)], bonds:[B("c1","c2","C=C",2),B("c1","h1","C–H",1),B("c1","h2","C–H",1),B("c2","h3","C–H",1),B("c2","h4","C–H",1)] };
-          const C2H6 = { name:"C2H6 (ethane)", atoms:[A("c1","C",40,40),A("c2","C",80,40),A("h1","H",15,20),A("h2","H",15,60),A("h3","H",40,10),A("h4","H",105,20),A("h5","H",105,60),A("h6","H",80,10)], bonds:[B("c1","c2","C–C",1),B("c1","h1","C–H",1),B("c1","h2","C–H",1),B("c1","h3","C–H",1),B("c2","h4","C–H",1),B("c2","h5","C–H",1),B("c2","h6","C–H",1)] };
-          return { reactants:[C2H4,H2], products:[C2H6] };
+      const checkWork = ()=>{
+        const sB = Number(studentBroken), sF = Number(studentFormed), sD = Number(studentDelta);
+        const correctBroken = Math.abs(sB - totalBroken) < 5;
+        const correctFormed = Math.abs(sF - totalFormed) < 5;
+        const correctDelta = Math.abs(sD - deltaH) < 5;
+        if(correctBroken && correctFormed && correctDelta){
+          setFeedback("✅ Great work! Your totals and ΔH look correct!");
+        }else{
+          setFeedback("⚠️ Check your math — your totals differ from expected values.");
         }
-        case "ethanol_combustion": {
-          const C2H5OH = { name:"C2H5OH (ethanol)", atoms:[A("c1","C",30,40),A("c2","C",60,40),A("o","O",90,30),A("hO","H",110,30),A("h1","H",15,20),A("h2","H",15,60),A("h3","H",30,10),A("h4","H",60,10),A("h5","H",60,70)], bonds:[B("c1","c2","C–C",1),B("c2","o","C–O",1),B("o","hO","O–H",1),B("c1","h1","C–H",1),B("c1","h2","C–H",1),B("c1","h3","C–H",1),B("c2","h4","C–H",1),B("c2","h5","C–H",1)] };
-          return { reactants:[C2H5OH,O2,O2,O2], products:[CO2,CO2,H2O,H2O,H2O] };
-        }
-        case "ozone_formation": {
-          const O3 = { name:"O3 (ozone)", atoms:[A("o1","O",30,40),A("o2","O",60,40),A("o3","O",90,40)], bonds:[B("o1","o2","O–O",1),B("o2","o3","O–O",1)] };
-          return { reactants:[O2,O2,O2], products:[O3,O3] };
-        }
-        default: return { reactants:[], products:[] };
-      }
-    }
+      };
 
-    function OrderStyle(order){
-      if (order === 2) return { width:4, offsets:[2.6, -2.6], glow:true };
-      if (order === 3) return { width:4.5, offsets:[0, 4.2, -4.2], glow:true };
-      return { width:3, offsets:[0], glow:false };
-    }
-    function offsetLine(x1,y1,x2,y2,k){
-      const dx=x2-x1, dy=y2-y1;
-      const len=Math.hypot(dx,dy)||1;
-      const nx=-dy/len, ny=dx/len;
-      return { x1:x1+nx*k, y1:y1+ny*k, x2:x2+nx*k, y2:y2+ny*k };
-    }
-
-    function Molecule({ model, onClickBond, themeColor }){
       return (
-        <div className="bg-slate-50 rounded-xl p-2">
-          <div className="text-xs font-medium mb-1" style={{ color: themeColor }}>{model.name}</div>
-          <svg viewBox="0 0 120 80" className="w-full h-36">
-            <defs>
-              <filter id="bondGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="0" stdDeviation="1.2" floodColor={themeColor} floodOpacity="0.35" />
-              </filter>
-            </defs>
-            {model.bonds.map((b) => {
-              const a = model.atoms.find(x => x.id===b.a);
-              const c = model.atoms.find(x => x.id===b.b);
-              const style = OrderStyle(b.order||1);
-              const lines = style.offsets.map(k => offsetLine(a.x,a.y,c.x,c.y,k));
-              return (
-                <g key={b.id} className="cursor-pointer" onClick={(e)=>onClickBond(b.key, e.shiftKey)} filter={style.glow ? "url(#bondGlow)" : undefined}>
-                  {lines.map((ln, j)=>(
-                    <line key={j} x1={ln.x1} y1={ln.y1} x2={ln.x2} y2={ln.y2} stroke={themeColor} strokeWidth={style.width} strokeLinecap="round" />
-                  ))}
-                  <line x1={a.x} y1={a.y} x2={c.x} y2={c.y} stroke="transparent" strokeWidth="14" />
-                </g>
-              );
-            })}
-            {model.atoms.map(atom => (
-              <g key={atom.id}>
-                <circle cx={atom.x} cy={atom.y} r="7" fill="#fff" stroke={themeColor} strokeWidth="2"></circle>
-                <text x={atom.x} y={atom.y+3} fontSize="9" textAnchor="middle" fill="#0f172a">{atom.element}</text>
-              </g>
-            ))}
-          </svg>
-          <div className="text-[11px] flex items-center gap-3 flex-wrap" style={{ color: themeColor }}>
-            <span>Tap bonds to tally.</span>
-            <span className="inline-flex items-center gap-1"><span className="w-5 h-[3px] inline-block rounded" style={{backgroundColor: themeColor}}></span> single</span>
-            <span className="inline-flex items-center gap-1"><span className="w-5 h-[4px] inline-block rounded" style={{backgroundColor: themeColor}}></span> double</span>
-            <span className="inline-flex items-center gap-1"><span className="w-5 h-[5px] inline-block rounded" style={{backgroundColor: themeColor}}></span> triple</span>
-          </div>
-        </div>
-      );
-    }
+        <div className="max-w-7xl mx-auto p-6 space-y-8">
+          <h1 className="text-3xl font-bold text-blue-700">Endo/Exothermic Bond Energy Simulator</h1>
+          <p className="text-slate-600 text-sm mb-3">Use bond energies (kJ/mol) to calculate ΣE broken and ΣE formed, then determine whether the reaction is endothermic or exothermic.</p>
 
-    function BrokenFormedSummary({ reactantCounts, productCounts, rColor, pColor }){
-      const brokenList = Object.entries(reactantCounts).filter(([,c])=>(Number(c)||0)>0);
-      const formedList = Object.entries(productCounts).filter(([,c])=>(Number(c)||0)>0);
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="mb-1" style={{ color: rColor }}>Bonds Broken (Reactants)</div>
-            {brokenList.length===0 ? <div className="text-slate-500">none selected</div> : (
-              <ul className="list-disc list-inside space-y-1">{brokenList.map(([k,c]) => <li key={k}><span className="font-medium">{k}</span>: {c}</li>)}</ul>
-            )}
-          </div>
-          <div>
-            <div className="mb-1" style={{ color: pColor }}>Bonds Formed (Products)</div>
-            {formedList.length===0 ? <div className="text-slate-500">none selected</div> : (
-              <ul className="list-disc list-inside space-y-1">{formedList.map(([k,c]) => <li key={k}><span className="font-medium">{k}</span>: {c}</li>)}</ul>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    function BondCounterTable({ keys, counts, setCount, inc, dec, accent }){
-      return (
-        <div className="max-h-[420px] overflow-auto pr-2">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left" style={{ color: accent }}>
-                <th className="py-1">Bond</th>
-                <th className="py-1">Count</th>
-                <th className="py-1">Controls</th>
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map(k => (
-                <tr key={k} className="border-t">
-                  <td className="py-1 pr-2 font-medium">{k}</td>
-                  <td className="py-1 w-24">
-                    <input className="w-20 border rounded-lg px-2 py-1" value={counts[k] ?? 0} onChange={(e)=>setCount(k, e.target.value)} aria-label={"Count for "+k} />
-                  </td>
-                  <td className="py-1">
-                    <div className="inline-flex items-center gap-2">
-                      <button className="border rounded-lg px-2 py-1" onClick={()=>dec(k)} style={{ borderColor: accent }}>−</button>
-                      <button className="border rounded-lg px-2 py-1" onClick={()=>inc(k)} style={{ borderColor: accent }}>+</button>
-                    </div>
-                  </td>
-                </tr>
+          {/* Step 1: Choose preset */}
+          <div className="bg-white rounded-2xl shadow p-4">
+            <h2 className="font-semibold mb-2">Step 1 — Choose a Reaction</h2>
+            <div className="space-y-2">
+              {PRESETS.map(p=>(
+                <button key={p.id}
+                  onClick={()=>setPreset(p)}
+                  className={`w-full text-left p-3 rounded-lg ${preset?.id===p.id?"bg-blue-100":"bg-slate-100 hover:bg-slate-200"}`}>
+                  <div className="font-medium">{p.name}</div>
+                  <div className="text-xs text-slate-600">{p.description}</div>
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-
-    function AdvancedPad(props){
-      const {
-        reactantCounts, productCounts, bondEnergies,
-        studentBroken, studentFormed, studentDelta,
-        setStudentBroken, setStudentFormed, setStudentDelta,
-        onCorrect,
-      } = props;
-      const [feedback, setFeedback] = React.useState(null);
-      const [studentType, setStudentType] = React.useState("");
-
-      const [reactantMyCount, setReactantMyCount] = React.useState({});
-      const [productMyCount, setProductMyCount] = React.useState({});
-      const [reactantSubtotal, setReactantSubtotal] = React.useState({});
-      const [productSubtotal, setProductSubtotal] = React.useState({});
-
-      const trueBroken = React.useMemo(()=>sumEnergy(reactantCounts, bondEnergies), [reactantCounts, bondEnergies]);
-      const trueFormed = React.useMemo(()=>sumEnergy(productCounts, bondEnergies), [productCounts, bondEnergies]);
-      const trueDelta  = React.useMemo(()=>trueBroken - trueFormed, [trueBroken, trueFormed]);
-
-      const reactantNonZero = Object.entries(reactantCounts).filter(([,v]) => (Number(v)||0)>0);
-      const productNonZero  = Object.entries(productCounts).filter(([,v]) => (Number(v)||0)>0);
-      const canEnter = reactantNonZero.length>0 && productNonZero.length>0;
-
-      function sumStudentSubtotals(map){ return Object.values(map).reduce((s,v)=>s+(Number(v)||0),0); }
-      const studentBrokenFromRows = sumStudentSubtotals(reactantSubtotal);
-      const studentFormedFromRows = sumStudentSubtotals(productSubtotal);
-
-      function check(){
-        const badCounts = [];
-        for (const [k,v] of reactantNonZero){
-          const my = Number(reactantMyCount[k]);
-          if (!Number.isFinite(my) || my !== Number(v)) badCounts.push("Reactants "+k);
-        }
-        for (const [k,v] of productNonZero){
-          const my = Number(productMyCount[k]);
-          if (!Number.isFinite(my) || my !== Number(v)) badCounts.push("Products "+k);
-        }
-        const b = Number(studentBroken);
-        const f = Number(studentFormed);
-        const d = Number(studentDelta);
-        const within = (x,y)=>Math.abs(x-y)<=5;
-
-        const okB = Number.isFinite(b) && within(b, trueBroken);
-        const okF = Number.isFinite(f) && within(f, trueFormed);
-        const okD = Number.isFinite(d) && within(d, trueDelta);
-        const expectedType = d<0 ? "exo" : d>0 ? "endo" : "neither";
-        const okT = studentType === expectedType;
-
-        if (badCounts.length){ setFeedback("⚠️ Recheck your counts in Step 5: " + badCounts.join(", ") + "."); return; }
-        if (okB && okF && okD && okT){ setFeedback("✅ Numbers and classification look good!"); try{ onCorrect(); }catch(e){} }
-        else{
-          const miss=[]; if(!okB)miss.push("ΣE broken"); if(!okF)miss.push("ΣE formed"); if(!okD)miss.push("ΔH"); if(!okT)miss.push("reaction type");
-          setFeedback("⚠️ Recheck: " + miss.join(", ") + ".");
-        }
-      }
-
-      return (
-        <div className="grid grid-cols-1 gap-4 text-sm">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="font-medium mb-1">Reactants (Bonds Broken) — Enter your counts & kJ subtotals</div>
-              <table className="w-full">
-                <thead className="text-slate-500">
-                  <tr>
-                    <th className="text-left">Bond</th>
-                    <th className="text-right">kJ/mol</th>
-                    <th className="text-right">My Count</th>
-                    <th className="text-right">My Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reactantNonZero.map(([k]) => (
-                    <tr key={k} className="border-t">
-                      <td className="py-1">{k}</td>
-                      <td className="py-1 text-right">{bondEnergies[k]}</td>
-                      <td className="py-1 text-right">
-                        <input className="w-16 border rounded px-1 text-right"
-                          value={reactantMyCount[k] ?? ""}
-                          onChange={(e)=>setReactantMyCount({...reactantMyCount,[k]:e.target.value})}
-                          disabled={!canEnter}/>
-                      </td>
-                      <td className="py-1 text-right">
-                        <input className="w-24 border rounded px-1 text-right"
-                          value={reactantSubtotal[k] ?? ""}
-                          onChange={(e)=>setReactantSubtotal({...reactantSubtotal,[k]:e.target.value})}
-                          placeholder="(count×kJ)" disabled={!canEnter}/>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div>
-              <div className="font-medium mb-1">Products (Bonds Formed) — Enter your counts & kJ subtotals</div>
-              <table className="w-full">
-                <thead className="text-slate-500">
-                  <tr>
-                    <th className="text-left">Bond</th>
-                    <th className="text-right">kJ/mol</th>
-                    <th className="text-right">My Count</th>
-                    <th className="text-right">My Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productNonZero.map(([k]) => (
-                    <tr key={k} className="border-t">
-                      <td className="py-1">{k}</td>
-                      <td className="py-1 text-right">{bondEnergies[k]}</td>
-                      <td className="py-1 text-right">
-                        <input className="w-16 border rounded px-1 text-right"
-                          value={productMyCount[k] ?? ""}
-                          onChange={(e)=>setProductMyCount({...productMyCount,[k]:e.target.value})}
-                          disabled={!canEnter}/>
-                      </td>
-                      <td className="py-1 text-right">
-                        <input className="w-24 border rounded px-1 text-right"
-                          value={productSubtotal[k] ?? ""}
-                          onChange={(e)=>setProductSubtotal({...productSubtotal,[k]:e.target.value})}
-                          placeholder="(count×kJ)" disabled={!canEnter}/>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
 
-          <div className="sm:grid sm:grid-cols-3 sm:gap-3">
-            <div>
-              <label className="text-slate-600 text-xs">My ΣE Broken (kJ/mol)</label>
-              <input className="w-full border rounded-lg px-2 py-1" value={studentBroken}
-                     onChange={(e)=>setStudentBroken(e.target.value)}
-                     placeholder={"Try ~"+Math.round(Object.values(reactantSubtotal).reduce((s,v)=>s+(Number(v)||0),0))}
-                     disabled={!canEnter}/>
-            </div>
-            <div>
-              <label className="text-slate-600 text-xs">My ΣE Formed (kJ/mol)</label>
-              <input className="w-full border rounded-lg px-2 py-1" value={studentFormed}
-                     onChange={(e)=>setStudentFormed(e.target.value)}
-                     placeholder={"Try ~"+Math.round(Object.values(productSubtotal).reduce((s,v)=>s+(Number(v)||0),0))}
-                     disabled={!canEnter}/>
-            </div>
-            <div>
-              <label className="text-slate-600 text-xs">My ΔH (Broken − Formed)</label>
-              <input className="w-full border rounded-lg px-2 py-1" value={studentDelta}
-                     onChange={(e)=>setStudentDelta(e.target.value)} placeholder="Compute and enter" disabled={!canEnter}/>
-            </div>
-          </div>
+          {/* Step 2: Bond counting */}
+          {preset && (
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-blue-50 rounded-2xl p-4">
+                <h2 className="font-semibold text-blue-700 mb-2">Step 2 — Reactants: Bonds Broken</h2>
+                {Object.keys(bondEnergies).sort().map(k=>(
+                  <div key={k} className="flex justify-between items-center text-sm py-1 border-b border-slate-200">
+                    <span>{k}</span>
+                    <div className="flex gap-2">
+                      <button onClick={()=>dec("r",k)} className="border rounded px-2">−</button>
+                      <input className="w-16 border rounded text-center" value={reactantCounts[k]||0} onChange={e=>setCount("r",k,e.target.value)} />
+                      <button onClick={()=>inc("r",k)} className="border rounded px-2">+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <label className="text-sm text-slate-700">My reaction type:</label>
-            <select className="border rounded-lg px-2 py-1" value={studentType} onChange={(e)=>setStudentType(e.target.value)} disabled={!canEnter}>
-              <option value="">Select…</option>
-              <option value="endo">Endothermic</option>
-              <option value="exo">Exothermic</option>
-              <option value="neither">Neither</option>
-            </select>
-            <button className="border rounded-xl px-3 py-2" onClick={check} disabled={!canEnter || !studentDelta || !studentType}>Check</button>
-            {feedback && <span className="text-sm">{feedback}</span>}
-          </div>
-        </div>
-      );
-    }
+              <div className="bg-green-50 rounded-2xl p-4">
+                <h2 className="font-semibold text-green-700 mb-2">Step 3 — Products: Bonds Formed</h2>
+                {Object.keys(bondEnergies).sort().map(k=>(
+                  <div key={k} className="flex justify-between items-center text-sm py-1 border-b border-slate-200">
+                    <span>{k}</span>
+                    <div className="flex gap-2">
+                      <button onClick={()=>dec("p",k)} className="border rounded px-2">−</button>
+                      <input className="w-16 border rounded text-center" value={productCounts[k]||0} onChange={e=>setCount("p",k,e.target.value)} />
+                      <button onClick={()=>inc("p",k)} className="border rounded px-2">+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-    function ModelPanel({ side, title, presetId, onClickBond, themeColor }){
-      const models = React.useMemo(()=>buildModelsForPreset(presetId), [presetId]);
-      const group = side==='r' ? models.reactants : models.products;
-      return (
-        <div className="rounded-2xl p-3" style={{ backgroundColor: themeColor, color: "#fff" }}>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">{title}</h3>
-            <div className="text-xs">Click = +1 · Shift+Click = −1</div>
-          </div>
-          {group.length===0 ? <div className="text-sm">Choose a preset to view models.</div> : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {group.map((m,i)=>(<Molecule key={m.name+i} model={m} onClickBond={onClickBond} themeColor={themeColor}/>))}
+          {/* Step 4: Review + Chart */}
+          {preset && (
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl shadow p-4">
+                <h2 className="font-semibold mb-2">Step 4 — Summary</h2>
+                <p>ΣE Broken (Reactants): <strong>{totalBroken}</strong> kJ/mol</p>
+                <p>ΣE Formed (Products): <strong>{totalFormed}</strong> kJ/mol</p>
+                <p>ΔH = {totalBroken} − {totalFormed} = <strong>{deltaH}</strong> kJ/mol</p>
+                <p className="mt-2">Reaction Type: <span className={`font-semibold ${reactionType==="Exothermic"?"text-green-600":"text-blue-600"}`}>{reactionType}</span></p>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow p-4">
+                <h2 className="font-semibold mb-2">Step 5 — Energy Comparison Chart</h2>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="label" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="energy" name="Energy (kJ/mol)">
+                        {chartData.map((d,i)=><Cell key={i} fill={d.fill}/>)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 6: Student Calculation Pad */}
+          {preset && (
+            <div className="bg-white rounded-2xl shadow p-4">
+              <h2 className="font-semibold mb-2">Step 6 — Student Calculation Pad</h2>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs text-slate-600">My ΣE Broken (kJ/mol)</label>
+                  <input className="w-full border rounded px-2 py-1" value={studentBroken} onChange={e=>setStudentBroken(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-600">My ΣE Formed (kJ/mol)</label>
+                  <input className="w-full border rounded px-2 py-1" value={studentFormed} onChange={e=>setStudentFormed(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-600">My ΔH</label>
+                  <input className="w-full border rounded px-2 py-1" value={studentDelta} onChange={e=>setStudentDelta(e.target.value)} />
+                </div>
+              </div>
+              <button onClick={checkWork} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Check My Work</button>
+              {feedback && <p className="mt-3">{feedback}</p>}
             </div>
           )}
         </div>
       );
     }
 
-    function App(){
-      const [bondEnergies] = React.useState({ ...DEFAULT_BOND_ENERGIES });
-      const [reactantCounts, setReactantCounts] = React.useState({
-        "H–H":0,"Cl–Cl":0,"H–Cl":0,"O=O":0,"O–H":0,"C–H":0,"C–C":0,"C=C":0,"C=O":0,"N≡N":0,"N–H":0,
-      });
-      const [productCounts, setProductCounts] = React.useState({
-        "H–H":0,"Cl–Cl":0,"H–Cl":0,"O=O":0,"O–H":0,"C–H":0,"C–C":0,"C=C":0,"C=O":0,"N≡N":0,"N–H":0,
-      });
-      const [studentBroken, setStudentBroken] = React.useState("");
-      const [studentFormed, setStudentFormed] = React.useState("");
-      const [studentDelta, setStudentDelta] = React.useState("");
-      const [currentPresetId, setCurrentPresetId] = React.useState(null);
-      const [studentName, setStudentName] = React.useState("");
-      const [studentPeriod, setStudentPeriod] = React.useState("");
-      const [completedIds, setCompletedIds] = React.useState([]);
-
-      const allBondKeys = React.useMemo(()=>Object.keys(bondEnergies).sort(), [bondEnergies]);
-      function applyPreset(presetId){
-        const zeros = {}; allBondKeys.forEach(k=>zeros[k]=0);
-        setReactantCounts(zeros); setProductCounts(zeros);
-        setStudentBroken(""); setStudentFormed(""); setStudentDelta("");
-        setCurrentPresetId(presetId);
-      }
-      function bump(side, key, delta){
-        const setter = side==='r'? setReactantCounts : setProductCounts;
-        const src = side==='r'? reactantCounts : productCounts;
-        setter({ ...src, [key]: clampInt((src[key]||0) + delta) });
-      }
-      function setCount(side, key, val){
-        const setter = side==='r'? setReactantCounts : setProductCounts;
-        const src = side==='r'? reactantCounts : productCounts;
-        setter({ ...src, [key]: clampInt(val) });
-      }
-
-      const chartData = React.useMemo(()=>{
-        const b = Number(studentBroken), f = Number(studentFormed);
-        const broken = Number.isFinite(b)?b:0, formed = Number.isFinite(f)?f:0;
-        return [
-          { label:"Bonds Broken (Reactants)", energy:Math.round(broken), fill:REACTANT_COLOR },
-          { label:"Bonds Formed (Products)",  energy:Math.round(formed), fill:PRODUCT_COLOR },
-        ];
-      },[studentBroken, studentFormed]);
-
-      function resetCounts(){
-        const zeros={}; allBondKeys.forEach(k=>zeros[k]=0);
-        setReactantCounts(zeros); setProductCounts(zeros);
-      }
-
-      return (
-        <div className="min-h-screen w-full p-6">
-          <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <section className="lg:col-span-1 space-y-4">
-              <h1 className="text-2xl font-bold">Endo/Exothermic Bond Energy Simulator</h1>
-              <p className="text-sm text-slate-600">Use bond energies (kJ/mol) to compute ΣE for bonds <em>broken</em> and <em>formed</em>, then decide if ΔH is endothermic or exothermic.</p>
-
-              <div className="bg-white rounded-2xl shadow p-4 space-y-3">
-                <h2 className="font-semibold">Student Info & Turn‑In</h2>
-                <div className="space-y-2">
-                  <input className="w-full border rounded-lg px-2 py-1" placeholder="Full name" value={studentName} onChange={(e)=>setStudentName(e.target.value)} />
-                  <input className="w-full border rounded-lg px-2 py-1" placeholder="Period / Class" value={studentPeriod} onChange={(e)=>setStudentPeriod(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow p-4 space-y-3">
-                <h2 className="font-semibold">Step 1 — Reaction Presets: Select a reaction below</h2>
-                <div className="space-y-2">
-                  {PRESETS.map(p => (
-                    <button key={p.id} className={"w-full text-left rounded-xl p-3 transition " + (currentPresetId===p.id? "bg-indigo-100":"bg-slate-100 hover:bg-slate-200")} onClick={()=>applyPreset(p.id)}>
-                      <div className="font-medium">{p.name}</div>
-                      <div className="text-xs text-slate-600">{p.description}</div>
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button className="inline-flex items-center gap-2 bg-white border rounded-xl px-3 py-2" onClick={resetCounts}>Reset counts</button>
-                </div>
-              </div>
-            </section>
-
-            <section className="lg:col-span-3 space-y-6">
-              <div className="bg-white rounded-2xl shadow p-4">
-                <h2 className="font-semibold mb-2">Step 2 — Click bonds in the models</h2>
-                <p className="text-xs text-slate-600 mb-3">Click a bond in <strong>Reactants</strong> to add to <em>Bonds Broken</em>. Click a bond in <strong>Products</strong> to add to <em>Bonds Formed</em>. Hold <kbd>Shift</kbd> to subtract.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ModelPanel side="r" title="Reactants" presetId={currentPresetId} onClickBond={(bondKey, subtract)=>bump('r', bondKey, subtract? -1 : +1)} themeColor={REACTANT_COLOR} />
-                  <ModelPanel side="p" title="Products"  presetId={currentPresetId} onClickBond={(bondKey, subtract)=>bump('p', bondKey, subtract? -1 : +1)} themeColor={PRODUCT_COLOR} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="rounded-2xl shadow p-4" style={{ backgroundColor: REACTANT_COLOR, color:"#fff" }}>
-                  <h2 className="font-semibold mb-3">Step 3 — Reactants: Bonds Broken</h2>
-                  <BondCounterTable
-                    keys={Object.keys(bondEnergies).sort()}
-                    counts={reactantCounts}
-                    setCount={(k,v)=>setCount('r',k,v)}
-                    inc={(k)=>bump('r',k,+1)}
-                    dec={(k)=>bump('r',k,-1)}
-                    accent="#fff"
-                  />
-                </div>
-                <div className="rounded-2xl shadow p-4" style={{ backgroundColor: PRODUCT_COLOR, color:"#fff" }}>
-                  <h2 className="font-semibold mb-3">Step 3 — Products: Bonds Formed</h2>
-                  <BondCounterTable
-                    keys={Object.keys(bondEnergies).sort()}
-                    counts={productCounts}
-                    setCount={(k,v)=>setCount('p',k,v)}
-                    inc={(k)=>bump('p',k,+1)}
-                    dec={(k)=>bump('p',k,-1)}
-                    accent="#fff"
-                  />
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow p-4">
-                <h2 className="font-semibold mb-2">Step 4 — Review your selected bonds</h2>
-                <BrokenFormedSummary reactantCounts={reactantCounts} productCounts={productCounts} rColor={REACTANT_COLOR} pColor={PRODUCT_COLOR} />
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl shadow p-4">
-                  <h2 className="font-semibold mb-2">Step 5 — Student Calculation Pad</h2>
-                  <AdvancedPad
-                    reactantCounts={reactantCounts}
-                    productCounts={productCounts}
-                    bondEnergies={bondEnergies}
-                    studentBroken={studentBroken}
-                    studentFormed={studentFormed}
-                    studentDelta={studentDelta}
-                    setStudentBroken={setStudentBroken}
-                    setStudentFormed={setStudentFormed}
-                    setStudentDelta={setStudentDelta}
-                    onCorrect={()=>{}}
-                  />
-                </div>
-
-                <div className="bg-white rounded-2xl shadow p-4">
-                  <h2 className="font-semibold mb-2">Step 6 — Energy Comparison (kJ/mol)</h2>
-                  <p className="text-xs text-slate-600 mb-2">Enter your totals in Step 5 first. This chart uses <em>your</em> ΣE values.</p>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="label" /><YAxis /><Tooltip /><Legend />
-                        <Bar dataKey="energy" name="Energy (kJ/mol)">
-                          {chartData.map((d,i)=>(<Cell key={i} fill={d.fill} />))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App/>);
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
   </script>
 </body>
 </html>
