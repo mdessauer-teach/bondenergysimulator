@@ -207,121 +207,86 @@ function el(tag,attrs={}){const e=document.createElement(tag);Object.assign(e,at
 function clear(id){document.getElementById(id).innerHTML='';}
 
 /* ========== DRAW MOLECULES ========== */
-function drawReaction(reac){
-  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
-  svg.setAttribute("width","780");svg.setAttribute("height","160");
+/* ========== DRAW MOLECULES (BALL-AND-STICK STYLE) ========== */
+function drawReaction(reac) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "820");
+  svg.setAttribute("height", "200");
+  bonds = [];
 
-  bonds=[];
-  function drawMol(mol,color){
-    mol.bonds.forEach(b=>{
-      const a1=mol.atoms.find(a=>a.label===b[0]);
-      const a2=mol.atoms.find(a=>a.label===b[1]);
-      if(!a1||!a2)return;
-      const line=document.createElementNS("http://www.w3.org/2000/svg","line");
-      line.setAttribute("x1",a1.x);line.setAttribute("y1",a1.y);
-      line.setAttribute("x2",a2.x);line.setAttribute("y2",a2.y);
-      line.setAttribute("stroke",color);
-      line.classList.add("bond-line");
-      const input=document.createElementNS("http://www.w3.org/2000/svg","foreignObject");
-      input.setAttribute("x",(a1.x+a2.x)/2-30);input.setAttribute("y",(a1.y+a2.y)/2-12);
-      input.setAttribute("width","70");input.setAttribute("height","24");
-      const box=el("input",{className:"bond-input",type:"number",min:100,max:1000});
-      input.append(box);
-      svg.append(line,input);
-      bonds.push({line,box,broken:false,formed:false});
+  const atomColors = { H: "#ffffff", C: "#9ca3af", O: "#ef4444", N: "#3b82f6", Cl: "#22c55e" };
+
+  // helper to draw one molecule centered around first atom
+  function drawMol(mol, color, offsetX = 0) {
+    const center = mol.atoms[0]; // first atom is anchor
+    const r = 40; // bond length
+    const angles = [0, 120, 240, 60, 180, 300]; // for spacing
+    let angleIndex = 0;
+
+    const placed = [{ ...center, x: center.x + offsetX, y: center.y }];
+    const atomMap = { [center.label + "0"]: placed[0] };
+
+    // place peripheral atoms radially
+    mol.bonds.forEach(b => {
+      const a1 = b[0], a2 = b[1];
+      const base = atomMap[a1 + "0"] || placed[0];
+      const theta = (angles[angleIndex++] * Math.PI) / 180;
+      const x = base.x + r * Math.cos(theta);
+      const y = base.y + r * Math.sin(theta);
+      const newAtom = { x, y, label: a2 };
+      atomMap[a2 + angleIndex] = newAtom;
+      placed.push(newAtom);
     });
-    mol.atoms.forEach(a=>{
-      const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
-      circ.setAttribute("cx",a.x);circ.setAttribute("cy",a.y);circ.setAttribute("r",12);
-      circ.setAttribute("fill","#fff");circ.setAttribute("stroke","#334155");
+
+    // draw bonds
+    mol.bonds.forEach((b, i) => {
+      const a1 = placed[0];
+      const a2 = placed[i + 1] || placed[0];
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", a1.x);
+      line.setAttribute("y1", a1.y);
+      line.setAttribute("x2", a2.x);
+      line.setAttribute("y2", a2.y);
+      line.setAttribute("stroke", color);
+      line.setAttribute("stroke-width", "3");
+      line.setAttribute("stroke-linecap", "round");
+      line.classList.add("bond-line");
+
+      const input = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+      input.setAttribute("x", (a1.x + a2.x) / 2 - 30);
+      input.setAttribute("y", (a1.y + a2.y) / 2 - 12);
+      input.setAttribute("width", "70");
+      input.setAttribute("height", "24");
+      const box = el("input", { className: "bond-input", type: "number", min: 100, max: 1000 });
+      input.append(box);
+      svg.append(line, input);
+      bonds.push({ line, box, broken: false, formed: false });
+    });
+
+    // draw atoms
+    placed.forEach(a => {
+      const circ = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circ.setAttribute("cx", a.x);
+      circ.setAttribute("cy", a.y);
+      circ.setAttribute("r", 14);
+      circ.setAttribute("fill", atomColors[a.label] || "#e5e7eb");
+      circ.setAttribute("stroke", "#334155");
       svg.append(circ);
-      const text=document.createElementNS("http://www.w3.org/2000/svg","text");
-      text.setAttribute("x",a.x-4);text.setAttribute("y",a.y+4);
-      text.setAttribute("font-size","12");text.textContent=a.label;
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", a.x - 5);
+      text.setAttribute("y", a.y + 5);
+      text.setAttribute("font-size", "12");
+      text.setAttribute("fill", "#000");
+      text.textContent = a.label;
       svg.append(text);
     });
   }
 
-  reac.reactants.forEach(m=>drawMol(m,"#2563eb"));
-  reac.products.forEach(m=>drawMol(m,"#16a34a"));
+  // render reactants and products offset
+  let xOffset = 0;
+  reac.reactants.forEach(m => { drawMol(m, "#2563eb", xOffset); xOffset += 150; });
+  xOffset += 60;
+  reac.products.forEach(m => { drawMol(m, "#16a34a", xOffset); xOffset += 150; });
+
   document.getElementById("svg-container").append(svg);
 }
-
-/* ========== ENERGY CALCS ========== */
-function updateTotals(){
-  let totalBroken=0,totalFormed=0;
-  bonds.forEach(b=>{
-    const v=parseFloat(b.box.value)||0;
-    if(v<100||v>1000){b.box.classList.add("invalid");}
-    else{b.box.classList.remove("invalid");}
-    if(b.broken) totalBroken+=v;
-    if(b.formed) totalFormed+=v;
-  });
-  broken=totalBroken;formed=totalFormed;
-  const delta=broken-formed;
-  document.getElementById("bar-broken-value").textContent=broken;
-  document.getElementById("bar-formed-value").textContent=formed;
-  const max=Math.max(broken,formed,1);
-  document.getElementById("bar-broken").style.width=(broken/max*100)+"%";
-  document.getElementById("bar-formed").style.width=(formed/max*100)+"%";
-  document.getElementById("deltaH").textContent=`ΔH = ${broken} − ${formed} = ${delta} kJ mol⁻¹ (${delta>0?"Endothermic":"Exothermic"})`;
-}
-
-/* ========== EVENT HANDLERS ========== */
-document.getElementById("break-btn").onclick=()=>{
-  bonds.forEach(b=>{b.line.classList.add("hidden");b.broken=true;b.formed=false;});
-  updateTotals();
-};
-document.getElementById("form-btn").onclick=()=>{
-  bonds.forEach(b=>{b.line.classList.remove("hidden");b.formed=true;b.broken=false;});
-  updateTotals();
-};
-document.getElementById("reset-btn").onclick=()=>{
-  bonds.forEach(b=>{b.line.classList.remove("hidden");b.broken=false;b.formed=false;b.box.value="";});
-  updateTotals();
-};
-
-/* ========== PRESETS ========== */
-function renderPresets(){
-  const cont=document.getElementById("preset-buttons");
-  Object.entries(reactions).forEach(([id,r])=>{
-    const btn=el("button",{innerHTML:`<div class='font-medium'>${r.name}</div>`,
-      className:"w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200"});
-    btn.onclick=()=>{
-      currentReaction=r;
-      document.querySelectorAll("#preset-buttons button").forEach(b=>b.classList.remove("bg-blue-100"));
-      btn.classList.add("bg-blue-100");
-      document.getElementById("molecule-panel").classList.remove("hidden");
-      document.getElementById("summary").classList.remove("hidden");
-      document.getElementById("student-section").classList.remove("hidden");
-      clear("svg-container");
-      drawReaction(r);
-      updateTotals();
-    };
-    cont.append(btn);
-  });
-}
-
-/* ========== STUDENT CHECK ========== */
-document.getElementById("check-btn").onclick=()=>{
-  const sB=parseFloat(document.getElementById("input-broken").value);
-  const sF=parseFloat(document.getElementById("input-formed").value);
-  const sD=parseFloat(document.getElementById("input-delta").value);
-  const d=broken-formed;
-  const okB=Math.abs(sB-broken)<5, okF=Math.abs(sF-formed)<5, okD=Math.abs(sD-d)<5;
-  const fb=document.getElementById("feedback");
-  if(okB&&okF&&okD){fb.textContent="✅ Great work! Your totals and ΔH look correct!";fb.className="mt-3 text-green-700 font-semibold";}
-  else{fb.textContent="⚠️ Check your math — your totals differ from expected values.";fb.className="mt-3 text-red-600 font-semibold";}
-};
-
-/* ========== MODAL ========== */
-const modal=document.getElementById("modal");
-document.getElementById("ref-btn").onclick=()=>modal.classList.remove("hidden");
-document.getElementById("close-modal").onclick=()=>modal.classList.add("hidden");
-window.onclick=e=>{if(e.target===modal) modal.classList.add("hidden");};
-
-/* INIT */
-renderPresets();
-</script>
-</body>
-</html>
