@@ -4,68 +4,67 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Endo/Exothermic Bond Energy Simulator</title>
+
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
-    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-    .bar {
-      height: 30px;
-      border-radius: 8px;
-      transition: width 0.6s ease-in-out;
-    }
+    body { font-family: 'Inter', sans-serif; background:#f8fafc; }
+    .bar { height:30px; border-radius:8px; transition:width .6s ease-in-out; }
+    .bond-line { stroke-width:3; transition:opacity .5s ease; cursor:pointer; }
+    .bond-line.hidden { opacity:0.1; }
+    .bond-input { width:60px; text-align:center; border:1px solid #cbd5e1;
+      border-radius:4px; font-size:.8rem; padding:2px; }
+    .invalid { border-color:#f59e0b; box-shadow:0 0 3px #fbbf24; }
+    .modal-bg { position:fixed; top:0; left:0; width:100%; height:100%;
+      background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; }
   </style>
 </head>
 <body class="text-slate-900">
   <div class="max-w-6xl mx-auto p-6 space-y-8">
-    <h1 class="text-3xl font-bold text-blue-700 text-center">Endo/Exothermic Bond Energy Simulator</h1>
-    <p class="text-center text-slate-600 text-sm">Use bond energies (kJ/mol) to calculate ΣE broken and ΣE formed, then determine whether the reaction is endothermic or exothermic.</p>
+    <h1 class="text-3xl font-bold text-blue-700 text-center">
+      Endo/Exothermic Bond Energy Simulator
+    </h1>
+    <p class="text-center text-slate-600 text-sm">
+      Use bond energies (kJ/mol) to calculate ΣE broken and ΣE formed, then determine whether the reaction is endothermic or exothermic.
+    </p>
 
-    <!-- Step 1: Presets -->
+    <!-- Step 1 — Reaction Presets -->
     <div class="bg-white rounded-2xl shadow p-4">
       <h2 class="font-semibold mb-2">Step 1 — Choose a Reaction</h2>
       <div id="preset-buttons" class="space-y-2"></div>
     </div>
 
-    <!-- Step 2: Bond Count Inputs -->
-    <div class="grid md:grid-cols-2 gap-6">
-      <div class="bg-blue-50 rounded-2xl p-4">
-        <h2 class="font-semibold text-blue-700 mb-2">Step 2 — Reactants: Bonds Broken</h2>
-        <div id="reactant-list" class="space-y-1 text-sm"></div>
-      </div>
-      <div class="bg-green-50 rounded-2xl p-4">
-        <h2 class="font-semibold text-green-700 mb-2">Step 3 — Products: Bonds Formed</h2>
-        <div id="product-list" class="space-y-1 text-sm"></div>
+    <!-- Step 2 — Interactive Molecules Panel -->
+    <div id="molecule-panel" class="bg-white rounded-2xl shadow p-4 hidden">
+      <h2 class="font-semibold mb-4">Step 2 — Model Breaking and Forming Bonds</h2>
+      <div id="svg-container" class="flex justify-center"></div>
+      <div class="flex justify-center gap-4 mt-4">
+        <button id="break-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Break Bonds</button>
+        <button id="form-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Form Bonds</button>
+        <button id="reset-btn" class="bg-slate-500 text-white px-4 py-2 rounded hover:bg-slate-600">Reset Reaction</button>
       </div>
     </div>
 
-    <!-- Step 4: Summary -->
-    <div class="grid md:grid-cols-2 gap-6">
-      <div class="bg-white rounded-2xl shadow p-4">
-        <h2 class="font-semibold mb-2">Step 4 — Summary</h2>
-        <p id="broken-total">ΣE Broken (Reactants): 0 kJ/mol</p>
-        <p id="formed-total">ΣE Formed (Products): 0 kJ/mol</p>
-        <p id="delta-h">ΔH = 0 kJ/mol</p>
-        <p id="reaction-type" class="mt-2 font-semibold text-blue-600">Reaction Type: —</p>
-      </div>
-
-      <!-- Step 5: Chart -->
-      <div class="bg-white rounded-2xl shadow p-4">
-        <h2 class="font-semibold mb-2">Step 5 — Energy Comparison Chart</h2>
-        <div class="h-64 flex flex-col justify-center gap-4">
-          <div>
-            <div class="flex justify-between text-sm mb-1"><span>ΣE broken (reactants)</span><span id="bar-broken-value">0</span></div>
-            <div class="w-full bg-slate-200"><div id="bar-broken" class="bar bg-blue-500" style="width:0%"></div></div>
-          </div>
-          <div>
-            <div class="flex justify-between text-sm mb-1"><span>ΣE formed (products)</span><span id="bar-formed-value">0</span></div>
-            <div class="w-full bg-slate-200"><div id="bar-formed" class="bar bg-green-500" style="width:0%"></div></div>
-          </div>
+    <!-- Step 3 — Energy Summary -->
+    <div id="summary" class="bg-white rounded-2xl shadow p-4 hidden">
+      <h2 class="font-semibold mb-2">Step 3 — Energy Summary</h2>
+      <div class="h-64 flex flex-col justify-center gap-4">
+        <div>
+          <div class="flex justify-between text-sm mb-1"><span>ΣE broken (reactants)</span><span id="bar-broken-value">0</span></div>
+          <div class="w-full bg-slate-200"><div id="bar-broken" class="bar bg-blue-600" style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm mb-1"><span>ΣE formed (products)</span><span id="bar-formed-value">0</span></div>
+          <div class="w-full bg-slate-200"><div id="bar-formed" class="bar bg-green-600" style="width:0%"></div></div>
         </div>
       </div>
+      <p id="deltaH" class="mt-2 font-semibold"></p>
     </div>
 
-    <!-- Step 6: Student Calculation Pad -->
-    <div class="bg-white rounded-2xl shadow p-4">
-      <h2 class="font-semibold mb-2">Step 6 — Student Calculation Pad</h2>
+    <!-- Step 4 — Student Entry and Check -->
+    <div id="student-section" class="bg-white rounded-2xl shadow p-4 hidden">
+      <h2 class="font-semibold mb-2">Step 4 — Student Calculation Pad</h2>
       <div class="grid md:grid-cols-3 gap-4">
         <div>
           <label class="text-xs text-slate-600">My ΣE Broken (kJ/mol)</label>
@@ -80,148 +79,249 @@
           <input id="input-delta" class="w-full border rounded px-2 py-1" />
         </div>
       </div>
-      <button id="check-btn" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Check My Work</button>
+      <button id="check-btn" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Check My Work</button>
+      <button id="ref-btn" class="mt-4 bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 ml-2">View Reference Energies</button>
       <p id="feedback" class="mt-3"></p>
     </div>
   </div>
 
-  <script>
-    const bondEnergies = {
-      "H-H":436,"Cl-Cl":243,"H-Cl":431,"O=O":498,"O-H":463,
-      "C-H":413,"C-C":348,"C=C":614,"C=O":799,"C-O":358,
-      "O-O":146,"N≡N":945,"N-H":391
+  <!-- Modal for Reference Bond Energies -->
+  <div id="modal" class="modal-bg hidden">
+    <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-6 relative">
+      <button id="close-modal" class="absolute top-2 right-3 text-xl font-bold text-slate-600">&times;</button>
+      <h3 class="text-xl font-semibold mb-3 text-center">Common Bond Energies (kJ mol⁻¹)</h3>
+      <table class="w-full text-sm text-left">
+        <thead><tr><th>Bond</th><th>Energy</th></tr></thead>
+        <tbody class="divide-y divide-slate-200">
+          <tr><td>H–H</td><td>436</td></tr>
+          <tr><td>Cl–Cl</td><td>243</td></tr>
+          <tr><td>H–Cl</td><td>431</td></tr>
+          <tr><td>O=O</td><td>498</td></tr>
+          <tr><td>O–H</td><td>463</td></tr>
+          <tr><td>C–H</td><td>413</td></tr>
+          <tr><td>C–C</td><td>348</td></tr>
+          <tr><td>C=C</td><td>614</td></tr>
+          <tr><td>C=O</td><td>799</td></tr>
+          <tr><td>C–O</td><td>358</td></tr>
+          <tr><td>O–O</td><td>146</td></tr>
+          <tr><td>N≡N</td><td>945</td></tr>
+          <tr><td>N–H</td><td>391</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<script>
+/* ========== DATA DEFINITIONS ========== */
+const reactions = {
+  "hcl": {
+    name: "H₂ + Cl₂ → 2 HCl",
+    reactants: [
+      { atoms:[{x:40,y:60,label:"H"},{x:100,y:60,label:"H"}], bonds:[["H","H"]] },
+      { atoms:[{x:180,y:60,label:"Cl"},{x:260,y:60,label:"Cl"}], bonds:[["Cl","Cl"]] }
+    ],
+    products: [
+      { atoms:[{x:360,y:60,label:"H"},{x:420,y:60,label:"Cl"}], bonds:[["H","Cl"]] },
+      { atoms:[{x:480,y:60,label:"H"},{x:540,y:60,label:"Cl"}], bonds:[["H","Cl"]] }
+    ]
+  },
+  "combustion": {
+    name:"CH₄ + 2 O₂ → CO₂ + 2 H₂O",
+    reactants:[
+      { atoms:[{x:80,y:70,label:"C"},
+               {x:40,y:40,label:"H"},{x:120,y:40,label:"H"},
+               {x:40,y:100,label:"H"},{x:120,y:100,label:"H"}],
+        bonds:[["C","H"],["C","H"],["C","H"],["C","H"]] },
+      { atoms:[{x:200,y:60,label:"O"},{x:240,y:60,label:"O"}], bonds:[["O","O"]] },
+      { atoms:[{x:280,y:60,label:"O"},{x:320,y:60,label:"O"}], bonds:[["O","O"]] }
+    ],
+    products:[
+      { atoms:[{x:420,y:70,label:"C"},{x:460,y:40,label:"O"},{x:460,y:100,label:"O"}],
+        bonds:[["C","O"],["C","O"]] },
+      { atoms:[{x:520,y:60,label:"H"},{x:560,y:40,label:"O"},{x:560,y:80,label:"H"}],
+        bonds:[["O","H"],["O","H"]] },
+      { atoms:[{x:600,y:60,label:"H"},{x:640,y:40,label:"O"},{x:640,y:80,label:"H"}],
+        bonds:[["O","H"],["O","H"]] }
+    ]
+  },
+  "haber": {
+    name:"N₂ + 3 H₂ → 2 NH₃",
+    reactants:[
+      { atoms:[{x:60,y:60,label:"N"},{x:120,y:60,label:"N"}], bonds:[["N","N"]] },
+      { atoms:[{x:180,y:40,label:"H"},{x:240,y:40,label:"H"}], bonds:[["H","H"]] },
+      { atoms:[{x:180,y:80,label:"H"},{x:240,y:80,label:"H"}], bonds:[["H","H"]] },
+      { atoms:[{x:180,y:120,label:"H"},{x:240,y:120,label:"H"}], bonds:[["H","H"]] }
+    ],
+    products:[
+      { atoms:[{x:320,y:60,label:"N"},{x:360,y:40,label:"H"},{x:360,y:80,label:"H"},{x:360,y:100,label:"H"}],
+        bonds:[["N","H"],["N","H"],["N","H"]] },
+      { atoms:[{x:420,y:60,label:"N"},{x:460,y:40,label:"H"},{x:460,y:80,label:"H"},{x:460,y:100,label:"H"}],
+        bonds:[["N","H"],["N","H"],["N","H"]] }
+    ]
+  },
+  "water_split": {
+    name:"2 H₂O → 2 H₂ + O₂",
+    reactants:[
+      { atoms:[{x:80,y:60,label:"O"},{x:40,y:40,label:"H"},{x:40,y:80,label:"H"}],
+        bonds:[["O","H"],["O","H"]] },
+      { atoms:[{x:160,y:60,label:"O"},{x:120,y:40,label:"H"},{x:120,y:80,label:"H"}],
+        bonds:[["O","H"],["O","H"]] }
+    ],
+    products:[
+      { atoms:[{x:260,y:60,label:"H"},{x:300,y:60,label:"H"}], bonds:[["H","H"]] },
+      { atoms:[{x:340,y:60,label:"O"},{x:400,y:60,label:"O"}], bonds:[["O","O"]] }
+    ]
+  },
+  "ethanol_combustion": {
+    name:"C₂H₅OH + 3 O₂ → 2 CO₂ + 3 H₂O",
+    reactants:[
+      { atoms:[{x:60,y:60,label:"C"},{x:100,y:60,label:"C"},
+               {x:40,y:40,label:"H"},{x:40,y:80,label:"H"},
+               {x:120,y:40,label:"H"},{x:120,y:80,label:"H"},
+               {x:160,y:60,label:"O"},{x:180,y:60,label:"H"}],
+        bonds:[["C","C"],["C","H"],["C","H"],["C","H"],["C","O"],["O","H"]] },
+      { atoms:[{x:220,y:40,label:"O"},{x:260,y:40,label:"O"}], bonds:[["O","O"]] },
+      { atoms:[{x:220,y:80,label:"O"},{x:260,y:80,label:"O"}], bonds:[["O","O"]] },
+      { atoms:[{x:220,y:120,label:"O"},{x:260,y:120,label:"O"}], bonds:[["O","O"]] }
+    ],
+    products:[
+      { atoms:[{x:340,y:60,label:"C"},{x:380,y:40,label:"O"},{x:380,y:80,label:"O"}],
+        bonds:[["C","O"],["C","O"]] },
+      { atoms:[{x:420,y:60,label:"C"},{x:460,y:40,label:"O"},{x:460,y:80,label:"O"}],
+        bonds:[["C","O"],["C","O"]] },
+      { atoms:[{x:520,y:60,label:"H"},{x:560,y:40,label:"O"},{x:560,y:80,label:"H"}],
+        bonds:[["O","H"],["O","H"]] },
+      { atoms:[{x:600,y:60,label:"H"},{x:640,y:40,label:"O"},{x:640,y:80,label:"H"}],
+        bonds:[["O","H"],["O","H"]] },
+      { atoms:[{x:680,y:60,label:"H"},{x:720,y:40,label:"O"},{x:720,y:80,label:"H"}],
+        bonds:[["O","H"],["O","H"]] }
+    ]
+  }
+};
+
+let currentReaction = null;
+let bonds = [];
+let broken = 0, formed = 0;
+
+/* ========== HELPER FUNCTIONS ========== */
+function el(tag,attrs={}){const e=document.createElement(tag);Object.assign(e,attrs);return e;}
+function clear(id){document.getElementById(id).innerHTML='';}
+
+/* ========== DRAW MOLECULES ========== */
+function drawReaction(reac){
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("width","780");svg.setAttribute("height","160");
+
+  bonds=[];
+  function drawMol(mol,color){
+    mol.bonds.forEach(b=>{
+      const a1=mol.atoms.find(a=>a.label===b[0]);
+      const a2=mol.atoms.find(a=>a.label===b[1]);
+      if(!a1||!a2)return;
+      const line=document.createElementNS("http://www.w3.org/2000/svg","line");
+      line.setAttribute("x1",a1.x);line.setAttribute("y1",a1.y);
+      line.setAttribute("x2",a2.x);line.setAttribute("y2",a2.y);
+      line.setAttribute("stroke",color);
+      line.classList.add("bond-line");
+      const input=document.createElementNS("http://www.w3.org/2000/svg","foreignObject");
+      input.setAttribute("x",(a1.x+a2.x)/2-30);input.setAttribute("y",(a1.y+a2.y)/2-12);
+      input.setAttribute("width","70");input.setAttribute("height","24");
+      const box=el("input",{className:"bond-input",type:"number",min:100,max:1000});
+      input.append(box);
+      svg.append(line,input);
+      bonds.push({line,box,broken:false,formed:false});
+    });
+    mol.atoms.forEach(a=>{
+      const circ=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      circ.setAttribute("cx",a.x);circ.setAttribute("cy",a.y);circ.setAttribute("r",12);
+      circ.setAttribute("fill","#fff");circ.setAttribute("stroke","#334155");
+      svg.append(circ);
+      const text=document.createElementNS("http://www.w3.org/2000/svg","text");
+      text.setAttribute("x",a.x-4);text.setAttribute("y",a.y+4);
+      text.setAttribute("font-size","12");text.textContent=a.label;
+      svg.append(text);
+    });
+  }
+
+  reac.reactants.forEach(m=>drawMol(m,"#2563eb"));
+  reac.products.forEach(m=>drawMol(m,"#16a34a"));
+  document.getElementById("svg-container").append(svg);
+}
+
+/* ========== ENERGY CALCS ========== */
+function updateTotals(){
+  let totalBroken=0,totalFormed=0;
+  bonds.forEach(b=>{
+    const v=parseFloat(b.box.value)||0;
+    if(v<100||v>1000){b.box.classList.add("invalid");}
+    else{b.box.classList.remove("invalid");}
+    if(b.broken) totalBroken+=v;
+    if(b.formed) totalFormed+=v;
+  });
+  broken=totalBroken;formed=totalFormed;
+  const delta=broken-formed;
+  document.getElementById("bar-broken-value").textContent=broken;
+  document.getElementById("bar-formed-value").textContent=formed;
+  const max=Math.max(broken,formed,1);
+  document.getElementById("bar-broken").style.width=(broken/max*100)+"%";
+  document.getElementById("bar-formed").style.width=(formed/max*100)+"%";
+  document.getElementById("deltaH").textContent=`ΔH = ${broken} − ${formed} = ${delta} kJ mol⁻¹ (${delta>0?"Endothermic":"Exothermic"})`;
+}
+
+/* ========== EVENT HANDLERS ========== */
+document.getElementById("break-btn").onclick=()=>{
+  bonds.forEach(b=>{b.line.classList.add("hidden");b.broken=true;b.formed=false;});
+  updateTotals();
+};
+document.getElementById("form-btn").onclick=()=>{
+  bonds.forEach(b=>{b.line.classList.remove("hidden");b.formed=true;b.broken=false;});
+  updateTotals();
+};
+document.getElementById("reset-btn").onclick=()=>{
+  bonds.forEach(b=>{b.line.classList.remove("hidden");b.broken=false;b.formed=false;b.box.value="";});
+  updateTotals();
+};
+
+/* ========== PRESETS ========== */
+function renderPresets(){
+  const cont=document.getElementById("preset-buttons");
+  Object.entries(reactions).forEach(([id,r])=>{
+    const btn=el("button",{innerHTML:`<div class='font-medium'>${r.name}</div>`,
+      className:"w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200"});
+    btn.onclick=()=>{
+      currentReaction=r;
+      document.querySelectorAll("#preset-buttons button").forEach(b=>b.classList.remove("bg-blue-100"));
+      btn.classList.add("bg-blue-100");
+      document.getElementById("molecule-panel").classList.remove("hidden");
+      document.getElementById("summary").classList.remove("hidden");
+      document.getElementById("student-section").classList.remove("hidden");
+      clear("svg-container");
+      drawReaction(r);
+      updateTotals();
     };
+    cont.append(btn);
+  });
+}
 
-    const presets = [
-      { id:"hcl", name:"H₂ + Cl₂ → 2 HCl", desc:"Synthesis of hydrogen chloride" },
-      { id:"combustion", name:"CH₄ + 2 O₂ → CO₂ + 2 H₂O", desc:"Combustion of methane" },
-      { id:"haber", name:"N₂ + 3 H₂ → 2 NH₃", desc:"Haber process" },
-      { id:"water_split", name:"2 H₂O → 2 H₂ + O₂", desc:"Electrolysis of water" },
-      { id:"ethanol_combustion", name:"C₂H₅OH + 3 O₂ → 2 CO₂ + 3 H₂O", desc:"Combustion of ethanol" },
-    ];
+/* ========== STUDENT CHECK ========== */
+document.getElementById("check-btn").onclick=()=>{
+  const sB=parseFloat(document.getElementById("input-broken").value);
+  const sF=parseFloat(document.getElementById("input-formed").value);
+  const sD=parseFloat(document.getElementById("input-delta").value);
+  const d=broken-formed;
+  const okB=Math.abs(sB-broken)<5, okF=Math.abs(sF-formed)<5, okD=Math.abs(sD-d)<5;
+  const fb=document.getElementById("feedback");
+  if(okB&&okF&&okD){fb.textContent="✅ Great work! Your totals and ΔH look correct!";fb.className="mt-3 text-green-700 font-semibold";}
+  else{fb.textContent="⚠️ Check your math — your totals differ from expected values.";fb.className="mt-3 text-red-600 font-semibold";}
+};
 
-    const reactantList = document.getElementById("reactant-list");
-    const productList = document.getElementById("product-list");
-    const brokenTotalEl = document.getElementById("broken-total");
-    const formedTotalEl = document.getElementById("formed-total");
-    const deltaHEl = document.getElementById("delta-h");
-    const typeEl = document.getElementById("reaction-type");
-    const feedbackEl = document.getElementById("feedback");
+/* ========== MODAL ========== */
+const modal=document.getElementById("modal");
+document.getElementById("ref-btn").onclick=()=>modal.classList.remove("hidden");
+document.getElementById("close-modal").onclick=()=>modal.classList.add("hidden");
+window.onclick=e=>{if(e.target===modal) modal.classList.add("hidden");};
 
-    const barBroken = document.getElementById("bar-broken");
-    const barFormed = document.getElementById("bar-formed");
-    const barBrokenValue = document.getElementById("bar-broken-value");
-    const barFormedValue = document.getElementById("bar-formed-value");
-
-    let reactants = {};
-    let products = {};
-
-    // Render all bonds
-    function renderBondLists() {
-      const createBondRow = (key, side) => {
-        const wrapper = document.createElement("div");
-        wrapper.className = "flex justify-between items-center border-b border-slate-200 py-1";
-        const label = document.createElement("span");
-        label.textContent = key;
-        const controls = document.createElement("div");
-        controls.className = "flex gap-2";
-        const minus = document.createElement("button");
-        minus.textContent = "−";
-        minus.className = "border rounded px-2";
-        const input = document.createElement("input");
-        input.value = 0;
-        input.className = "w-16 border rounded text-center";
-        const plus = document.createElement("button");
-        plus.textContent = "+";
-        plus.className = "border rounded px-2";
-
-        function update(v) {
-          const val = Math.max(0, Number(v)||0);
-          if(side==="r") reactants[key]=val; else products[key]=val;
-          input.value = val;
-          updateTotals();
-        }
-
-        plus.onclick = ()=>update((side==="r"?reactants[key]:products[key])+1);
-        minus.onclick = ()=>update((side==="r"?reactants[key]:products[key])-1);
-        input.oninput = ()=>update(input.value);
-        controls.append(minus,input,plus);
-        wrapper.append(label,controls);
-        return wrapper;
-      };
-
-      Object.keys(bondEnergies).sort().forEach(k=>{
-        reactantList.append(createBondRow(k,"r"));
-        productList.append(createBondRow(k,"p"));
-      });
-    }
-
-    // Compute and update display
-    function updateTotals(){
-      const sum = (obj)=>Object.entries(obj).reduce((s,[k,c])=>s+(bondEnergies[k]||0)*(c||0),0);
-      const totalBroken = sum(reactants);
-      const totalFormed = sum(products);
-      const deltaH = totalBroken - totalFormed;
-      const type = deltaH>0?"Endothermic":deltaH<0?"Exothermic":"Neutral";
-
-      brokenTotalEl.textContent = `ΣE Broken (Reactants): ${totalBroken} kJ/mol`;
-      formedTotalEl.textContent = `ΣE Formed (Products): ${totalFormed} kJ/mol`;
-      deltaHEl.textContent = `ΔH = ${totalBroken} − ${totalFormed} = ${deltaH} kJ/mol`;
-      typeEl.textContent = `Reaction Type: ${type}`;
-      typeEl.className = `mt-2 font-semibold ${type==="Exothermic"?"text-green-600":"text-blue-600"}`;
-
-      // Animate chart bars
-      const maxEnergy = Math.max(totalBroken,totalFormed,1);
-      barBroken.style.width = (totalBroken/maxEnergy*100)+"%";
-      barFormed.style.width = (totalFormed/maxEnergy*100)+"%";
-      barBrokenValue.textContent = totalBroken;
-      barFormedValue.textContent = totalFormed;
-    }
-
-    // Presets
-    function renderPresets(){
-      const container=document.getElementById("preset-buttons");
-      presets.forEach(p=>{
-        const btn=document.createElement("button");
-        btn.className="w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200";
-        btn.innerHTML=`<div class='font-medium'>${p.name}</div><div class='text-xs text-slate-600'>${p.desc}</div>`;
-        btn.onclick=()=>{
-          document.querySelectorAll("#preset-buttons button").forEach(b=>b.classList.remove("bg-blue-100"));
-          btn.classList.add("bg-blue-100");
-          // Reset counts
-          reactants={}; products={};
-          document.querySelectorAll("input").forEach(i=>i.value=0);
-          updateTotals();
-        };
-        container.append(btn);
-      });
-    }
-
-    // Check Work
-    document.getElementById("check-btn").onclick=()=>{
-      const sB=Number(document.getElementById("input-broken").value);
-      const sF=Number(document.getElementById("input-formed").value);
-      const sD=Number(document.getElementById("input-delta").value);
-      const sum=(obj)=>Object.entries(obj).reduce((s,[k,c])=>s+(bondEnergies[k]||0)*(c||0),0);
-      const totalBroken=sum(reactants);
-      const totalFormed=sum(products);
-      const deltaH=totalBroken-totalFormed;
-      const correctB=Math.abs(sB-totalBroken)<5;
-      const correctF=Math.abs(sF-totalFormed)<5;
-      const correctD=Math.abs(sD-deltaH)<5;
-      if(correctB&&correctF&&correctD){
-        feedbackEl.textContent="✅ Great work! Your totals and ΔH look correct!";
-        feedbackEl.className="mt-3 text-green-700 font-semibold";
-      }else{
-        feedbackEl.textContent="⚠️ Check your math — your totals differ from expected values.";
-        feedbackEl.className="mt-3 text-red-600 font-semibold";
-      }
-    };
-
-    // Initialize
-    renderBondLists();
-    renderPresets();
-    updateTotals();
-  </script>
+/* INIT */
+renderPresets();
+</script>
 </body>
 </html>
