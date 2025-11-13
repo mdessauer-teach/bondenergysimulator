@@ -2,257 +2,884 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Endo/Exothermic Bond Energy Simulator</title>
+  <title>Bond Energy Interactive Model</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Tailwind CSS -->
+  <!-- Tailwind (for nice styling) -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React + ReactDOM + Babel (so we can write JSX in-browser) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <style>
-    body { font-family: 'Inter', sans-serif; background:#f8fafc; }
-    .bar { height:30px; border-radius:8px; transition:width .6s ease-in-out; }
-    .bond-line { stroke-width:3; transition:opacity .5s ease; cursor:pointer; }
-    .bond-line.hidden { opacity:0.1; }
-    .bond-input { width:60px; text-align:center; border:1px solid #cbd5e1;
-      border-radius:4px; font-size:.8rem; padding:2px; }
-    .invalid { border-color:#f59e0b; box-shadow:0 0 3px #fbbf24; }
-    .modal-bg { position:fixed; top:0; left:0; width:100%; height:100%;
-      background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif; }
   </style>
 </head>
+<body class="bg-slate-50">
+  <div id="root" class="min-h-screen"></div>
 
-<body class="text-slate-900">
-  <div class="max-w-6xl mx-auto p-6 space-y-8">
-    <h1 class="text-3xl font-bold text-blue-700 text-center">
-      Endo/Exothermic Bond Energy Simulator
-    </h1>
-    <p class="text-center text-slate-600 text-sm">
-      Use bond energies (kJ/mol) to calculate ΣE broken and ΣE formed, then determine whether the reaction is endothermic or exothermic.
-    </p>
+  <script type="text/babel">
+    const { useState, useMemo } = React;
 
-    <!-- Step 1 -->
-    <div class="bg-white rounded-2xl shadow p-4">
-      <h2 class="font-semibold mb-2">Step 1 — Choose a Reaction</h2>
-      <div id="preset-buttons" class="space-y-2"></div>
-    </div>
-
-    <!-- Step 2 -->
-    <div id="molecule-panel" class="bg-white rounded-2xl shadow p-4 hidden">
-      <h2 class="font-semibold mb-4">Step 2 — Model Breaking and Forming Bonds</h2>
-      <!-- bigger, boxed, scrollable if needed -->
-      <div
-        id="svg-container"
-        class="flex justify-center bg-slate-50 rounded-xl border border-slate-200 p-4 overflow-x-auto min-h-[260px]"
-      ></div>
-      <div class="flex justify-center gap-4 mt-4">
-        <button id="break-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Break Bonds</button>
-        <button id="form-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Form Bonds</button>
-        <button id="reset-btn" class="bg-slate-500 text-white px-4 py-2 rounded hover:bg-slate-600">Reset Reaction</button>
-      </div>
-    </div>
-
-    <!-- Step 3 -->
-    <div id="summary" class="bg-white rounded-2xl shadow p-4 hidden">
-      <h2 class="font-semibold mb-2">Step 3 — Energy Summary</h2>
-      <div class="h-64 flex flex-col justify-center gap-4">
-        <div>
-          <div class="flex justify-between text-sm mb-1"><span>ΣE broken (reactants)</span><span id="bar-broken-value">0</span></div>
-          <div class="w-full bg-slate-200"><div id="bar-broken" class="bar bg-blue-600" style="width:0%"></div></div>
-        </div>
-        <div>
-          <div class="flex justify-between text-sm mb-1"><span>ΣE formed (products)</span><span id="bar-formed-value">0</span></div>
-          <div class="w-full bg-slate-200"><div id="bar-formed" class="bar bg-green-600" style="width:0%"></div></div>
-        </div>
-      </div>
-      <p id="deltaH" class="mt-2 font-semibold"></p>
-    </div>
-
-    <!-- Step 4 -->
-    <div id="student-section" class="bg-white rounded-2xl shadow p-4 hidden">
-      <h2 class="font-semibold mb-2">Step 4 — Student Calculation Pad</h2>
-      <div class="grid md:grid-cols-3 gap-4">
-        <div>
-          <label class="text-xs text-slate-600">My ΣE Broken (kJ/mol)</label>
-          <input id="input-broken" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="text-xs text-slate-600">My ΣE Formed (kJ/mol)</label>
-          <input id="input-formed" class="w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="text-xs text-slate-600">My ΔH</label>
-          <input id="input-delta" class="w-full border rounded px-2 py-1" />
-        </div>
-      </div>
-      <button id="check-btn" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Check My Work</button>
-      <button id="ref-btn" class="mt-4 bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 ml-2">View Reference Energies</button>
-      <p id="feedback" class="mt-3"></p>
-    </div>
-  </div>
-
-  <!-- Modal -->
-  <div id="modal" class="modal-bg hidden">
-    <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-6 relative">
-      <button id="close-modal" class="absolute top-2 right-3 text-xl font-bold text-slate-600">&times;</button>
-      <h3 class="text-xl font-semibold mb-3 text-center">Common Bond Energies (kJ mol⁻¹)</h3>
-      <table class="w-full text-sm text-left">
-        <thead><tr><th>Bond</th><th>Energy</th></tr></thead>
-        <tbody class="divide-y divide-slate-200">
-          <tr><td>H–H</td><td>436</td></tr>
-          <tr><td>Cl–Cl</td><td>243</td></tr>
-          <tr><td>H–Cl</td><td>431</td></tr>
-          <tr><td>O=O</td><td>498</td></tr>
-          <tr><td>O–H</td><td>463</td></tr>
-          <tr><td>C–H</td><td>413</td></tr>
-          <tr><td>C–C</td><td>348</td></tr>
-          <tr><td>C=C</td><td>614</td></tr>
-          <tr><td>C=O</td><td>799</td></tr>
-          <tr><td>C–O</td><td>358</td></tr>
-          <tr><td>O–O</td><td>146</td></tr>
-          <tr><td>N≡N</td><td>945</td></tr>
-          <tr><td>N–H</td><td>391</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- JavaScript -->
-  <script>
-    const reactions = {
-      hcl: {
-        name: "H₂ + Cl₂ → 2 HCl",
-        reactants: [{ atoms:[{x:0,y:100,label:"H"}], bonds:[["H","H"]] }, { atoms:[{x:0,y:100,label:"Cl"}], bonds:[["Cl","Cl"]] }],
-        products: [{ atoms:[{x:0,y:100,label:"H"}], bonds:[["H","Cl"]] }]
-      },
-      combustion: {
-        name: "CH₄ + 2 O₂ → CO₂ + 2 H₂O",
-        reactants: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","H"],["C","H"],["C","H"],["C","H"]] },
-                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","O"]] }],
-        products: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","O"],["C","O"]] },
-                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","H"],["O","H"]] }]
-      },
-      haber: {
-        name: "N₂ + 3 H₂ → 2 NH₃",
-        reactants: [{ atoms:[{x:0,y:100,label:"N"}], bonds:[["N","N"]] },
-                   { atoms:[{x:0,y:100,label:"H"}], bonds:[["H","H"]] }],
-        products: [{ atoms:[{x:0,y:100,label:"N"}], bonds:[["N","H"],["N","H"],["N","H"]] }]
-      },
-      water_split: {
-        name: "2 H₂O → 2 H₂ + O₂",
-        reactants: [{ atoms:[{x:0,y:100,label:"O"}], bonds:[["O","H"],["O","H"]] }],
-        products: [{ atoms:[{x:0,y:100,label:"H"}], bonds:[["H","H"]] },
-                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","O"]] }]
-      },
-      ethanol_combustion: {
-        name: "C₂H₅OH + 3 O₂ → 2 CO₂ + 3 H₂O",
-        reactants: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","C"],["C","H"],["C","H"],["C","H"]] },
-                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","O"]] }],
-        products: [{ atoms:[{x:0,y:100,label:"C"}], bonds:[["C","O"],["C","O"]] },
-                   { atoms:[{x:0,y:100,label:"O"}], bonds:[["O","H"],["O","H"]] }]
-      }
+    // Common bond energies (kJ/mol)
+    const DEFAULT_BOND_LIBRARY = {
+      "H–H": 436,
+      "C–H": 413,
+      "C–C": 348,
+      "C=C": 614,
+      "C≡C": 839,
+      "O–H": 463,
+      "C–O": 358,
+      "C=O": 799,
+      "O=O": 498,
+      "Cl–Cl": 242,
+      "H–Cl": 431,
     };
 
-    const el = (t,a={}) => Object.assign(document.createElement(t),a);
+    // Small card wrapper for molecules
+    function MoleculeCard({ title, children }) {
+      return (
+        <div className="border rounded-lg p-3 bg-white shadow-sm">
+          <div className="text-xs mb-1 font-medium">{title}</div>
+          {children}
+        </div>
+      );
+    }
 
-    function drawReaction(reac){
-      const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
-      // Wider and taller drawing area
-      svg.setAttribute("viewBox","0 0 1000 260");
-      svg.setAttribute("width","100%");
-      svg.setAttribute("height","260");
+    function MoleculeCH4({ onClickBond, showLabels }) {
+      return (
+        <MoleculeCard title="CH₄ (tetrahedral schematic)">
+          <svg viewBox="0 0 180 140" className="w-full h-36">
+            {/* central C */}
+            <circle cx="90" cy="70" r="10" fill="#e5e7eb" stroke="#111827" />
+            {showLabels && (
+              <text x="86" y="74" fontSize="10" fontWeight="bold">C</text>
+            )}
+            {/* 4 C–H bonds */}
+            {[
+              [90, 70, 30, 20],
+              [90, 70, 150, 20],
+              [90, 70, 30, 120],
+              [90, 70, 150, 120],
+            ].map(([x1, y1, x2, y2], i) => (
+              <g key={i} onClick={() => onClickBond("C–H")} className="cursor-pointer">
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#111827" strokeWidth={3} />
+                <circle cx={x2} cy={y2} r={6} fill="#fff" stroke="#111827" />
+                {showLabels && (
+                  <text x={x2 - 3} y={y2 + 4} fontSize="10" fontWeight="bold">H</text>
+                )}
+              </g>
+            ))}
+            <text x="5" y="135" fontSize="10">Click bonds to count C–H</text>
+          </svg>
+        </MoleculeCard>
+      );
+    }
 
-      const atomColors={H:"#ffffff",C:"#9ca3af",O:"#ef4444",N:"#3b82f6",Cl:"#22c55e"};
+    function MoleculeO2({ onClickBond, showLabels }) {
+      return (
+        <MoleculeCard title="O₂">
+          <svg viewBox="0 0 160 60" className="w-full h-20">
+            {/* Two lines for double bond (count as one O=O) */}
+            <g onClick={() => onClickBond("O=O")} className="cursor-pointer">
+              {[-2, 2].map((dy, i) => (
+                <line
+                  key={i}
+                  x1={40} y1={30 + dy}
+                  x2={120} y2={30 + dy}
+                  stroke="#111827"
+                  strokeWidth={3}
+                />
+              ))}
+            </g>
+            <circle cx={30} cy={30} r={8} fill="#fff" stroke="#111827" />
+            <circle cx={130} cy={30} r={8} fill="#fff" stroke="#111827" />
+            {showLabels && (
+              <>
+                <text x={26} y={34} fontSize="10" fontWeight="bold">O</text>
+                <text x={126} y={34} fontSize="10" fontWeight="bold">O</text>
+              </>
+            )}
+            <text x="5" y="55" fontSize="10">Click the double bond once = 1× O=O</text>
+          </svg>
+        </MoleculeCard>
+      );
+    }
 
-      // labels for rows
-      const labelReact = document.createElementNS("http://www.w3.org/2000/svg","text");
-      labelReact.setAttribute("x","20");
-      labelReact.setAttribute("y","30");
-      labelReact.setAttribute("fill","#0f172a");
-      labelReact.setAttribute("font-size","16");
-      labelReact.setAttribute("font-weight","600");
-      labelReact.textContent = "Reactants";
-      svg.append(labelReact);
+    function MoleculeCO2({ onClickBond, showLabels }) {
+      return (
+        <MoleculeCard title="CO₂ (linear)">
+          <svg viewBox="0 0 200 60" className="w-full h-20">
+            {/* O=C=O with two C=O double bonds */}
+            {[
+              [60, 30, 100, 30],
+              [100, 30, 140, 30],
+            ].map(([x1, y1, x2, y2], i) => (
+              <g key={i} onClick={() => onClickBond("C=O")} className="cursor-pointer">
+                <line x1={x1} y1={y1 - 2} x2={x2} y2={y2 - 2} stroke="#111827" strokeWidth={3} />
+                <line x1={x1} y1={y1 + 2} x2={x2} y2={y2 + 2} stroke="#111827" strokeWidth={3} />
+              </g>
+            ))}
+            <circle cx={50} cy={30} r={8} fill="#fff" stroke="#111827" />
+            <circle cx={100} cy={30} r={8} fill="#e5e7eb" stroke="#111827" />
+            <circle cx={150} cy={30} r={8} fill="#fff" stroke="#111827" />
+            {showLabels && (
+              <>
+                <text x={47} y={34} fontSize="10" fontWeight="bold">O</text>
+                <text x={97} y={34} fontSize="10" fontWeight="bold">C</text>
+                <text x={147} y={34} fontSize="10" fontWeight="bold">O</text>
+              </>
+            )}
+          </svg>
+        </MoleculeCard>
+      );
+    }
 
-      const labelProd = document.createElementNS("http://www.w3.org/2000/svg","text");
-      labelProd.setAttribute("x","20");
-      labelProd.setAttribute("y","145");
-      labelProd.setAttribute("fill","#0f172a");
-      labelProd.setAttribute("font-size","16");
-      labelProd.setAttribute("font-weight","600");
-      labelProd.textContent = "Products";
-      svg.append(labelProd);
+    function MoleculeH2O({ onClickBond, showLabels }) {
+      return (
+        <MoleculeCard title="H₂O (bent)">
+          <svg viewBox="0 0 160 100" className="w-full h-24">
+            <circle cx={80} cy={50} r={10} fill="#e5e7eb" stroke="#111827" />
+            {showLabels && (
+              <text x={77} y={54} fontSize="10" fontWeight="bold">O</text>
+            )}
+            {/* Two O–H bonds */}
+            <g onClick={() => onClickBond("O–H")} className="cursor-pointer">
+              <line x1={80} y1={50} x2={40} y2={20} stroke="#111827" strokeWidth={3} />
+              <circle cx={35} cy={15} r={6} fill="#fff" stroke="#111827" />
+              {showLabels && (
+                <text x={32} y={19} fontSize="10" fontWeight="bold">H</text>
+              )}
+            </g>
+            <g onClick={() => onClickBond("O–H")} className="cursor-pointer">
+              <line x1={80} y1={50} x2={120} y2={20} stroke="#111827" strokeWidth={3} />
+              <circle cx={125} cy={15} r={6} fill="#fff" stroke="#111827" />
+              {showLabels && (
+                <text x={122} y={19} fontSize="10" fontWeight="bold">H</text>
+              )}
+            </g>
+          </svg>
+        </MoleculeCard>
+      );
+    }
 
-      // draw a molecule at a given column and row (reactant or product)
-      function drawMol(mol,color,colIndex,isProduct=false){
-        const centerX = 150 + colIndex*200;   // spacing left-right
-        const centerY = isProduct ? 190 : 75; // top row vs bottom row
-        const center = {x:centerX,y:centerY,label:mol.atoms[0].label};
-        const r = 70; // distance for bonded atoms
+    function MoleculeH2({ onClickBond, showLabels }) {
+      return (
+        <MoleculeCard title="H₂">
+          <svg viewBox="0 0 160 60" className="w-full h-20">
+            <line
+              x1={40} y1={30}
+              x2={120} y2={30}
+              stroke="#111827"
+              strokeWidth={3}
+              onClick={() => onClickBond("H–H")}
+              className="cursor-pointer"
+            />
+            <circle cx={30} cy={30} r={8} fill="#fff" stroke="#111827" />
+            <circle cx={130} cy={30} r={8} fill="#fff" stroke="#111827" />
+            {showLabels && (
+              <>
+                <text x={27} y={34} fontSize="10" fontWeight="bold">H</text>
+                <text x={127} y={34} fontSize="10" fontWeight="bold">H</text>
+              </>
+            )}
+          </svg>
+        </MoleculeCard>
+      );
+    }
 
-        const angles=[0,120,240,60,180,300];
-        let i=0;
-        const placed=[center];
+    function MoleculeCl2({ onClickBond, showLabels }) {
+      return (
+        <MoleculeCard title="Cl₂">
+          <svg viewBox="0 0 160 60" className="w-full h-20">
+            <line
+              x1={40} y1={30}
+              x2={120} y2={30}
+              stroke="#111827"
+              strokeWidth={3}
+              onClick={() => onClickBond("Cl–Cl")}
+              className="cursor-pointer"
+            />
+            <circle cx={30} cy={30} r={8} fill="#fff" stroke="#111827" />
+            <circle cx={130} cy={30} r={8} fill="#fff" stroke="#111827" />
+            {showLabels && (
+              <>
+                <text x={22} y={34} fontSize="10" fontWeight="bold">Cl</text>
+                <text x={122} y={34} fontSize="10" fontWeight="bold">Cl</text>
+              </>
+            )}
+          </svg>
+        </MoleculeCard>
+      );
+    }
 
-        mol.bonds.forEach(b=>{
-          const base=center;
-          const th=(angles[i++]*Math.PI)/180;
-          const x=base.x+r*Math.cos(th), y=base.y+r*Math.sin(th);
-          const a2={x,y,label:b[1]};
-          placed.push(a2);
-          const line=document.createElementNS("http://www.w3.org/2000/svg","line");
-          line.setAttribute("x1",base.x); line.setAttribute("y1",base.y);
-          line.setAttribute("x2",a2.x); line.setAttribute("y2",a2.y);
-          line.setAttribute("stroke",color);
-          line.setAttribute("stroke-width","4");
-          svg.append(line);
-        });
+    function MoleculeHCl({ onClickBond, showLabels }) {
+      return (
+        <MoleculeCard title="HCl">
+          <svg viewBox="0 0 160 60" className="w-full h-20">
+            <line
+              x1={50} y1={30}
+              x2={110} y2={30}
+              stroke="#111827"
+              strokeWidth={3}
+              onClick={() => onClickBond("H–Cl")}
+              className="cursor-pointer"
+            />
+            <circle cx={40} cy={30} r={8} fill="#fff" stroke="#111827" />
+            <circle cx={120} cy={30} r={10} fill="#e5e7eb" stroke="#111827" />
+            {showLabels && (
+              <>
+                <text x={37} y={34} fontSize="10" fontWeight="bold">H</text>
+                <text x={115} y={34} fontSize="10" fontWeight="bold">Cl</text>
+              </>
+            )}
+          </svg>
+        </MoleculeCard>
+      );
+    }
 
-        placed.forEach(a=>{
-          const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
-          c.setAttribute("cx",a.x); c.setAttribute("cy",a.y);
-          c.setAttribute("r","22");
-          c.setAttribute("fill",atomColors[a.label]||"#e5e7eb");
-          c.setAttribute("stroke","#1f2937");
-          c.setAttribute("stroke-width","2");
-          svg.append(c);
+    // Reactions used in "Build from Structures"
+    const REACTIONS = {
+      methane: {
+        name: "Combustion of methane",
+        equation: "CH₄ + 2 O₂ → CO₂ + 2 H₂O + heat",
+        reactants: [
+          { label: "CH₄", component: MoleculeCH4, multiplier: 1 },
+          { label: "O₂ (×2)", component: MoleculeO2, multiplier: 2 },
+        ],
+        products: [
+          { label: "CO₂", component: MoleculeCO2, multiplier: 1 },
+          { label: "H₂O (×2)", component: MoleculeH2O, multiplier: 2 },
+        ],
+        expectedBroken: { "C–H": 4, "O=O": 2 },
+        expectedFormed: { "C=O": 2, "O–H": 4 },
+      },
+      hcl: {
+        name: "Synthesis of HCl",
+        equation: "H₂ + Cl₂ → 2 HCl",
+        reactants: [
+          { label: "H₂", component: MoleculeH2, multiplier: 1 },
+          { label: "Cl₂", component: MoleculeCl2, multiplier: 1 },
+        ],
+        products: [
+          { label: "HCl (×2)", component: MoleculeHCl, multiplier: 2 },
+        ],
+        expectedBroken: { "H–H": 1, "Cl–Cl": 1 },
+        expectedFormed: { "H–Cl": 2 },
+      },
+    };
 
-          const t=document.createElementNS("http://www.w3.org/2000/svg","text");
-          t.setAttribute("x",a.x-9);
-          t.setAttribute("y",a.y+6);
-          t.setAttribute("fill","#0f172a");
-          t.setAttribute("font-size","18");
-          t.setAttribute("font-weight","700");
-          t.textContent=a.label;
-          svg.append(t);
-        });
+    function bumpMap(map, key, by = 1) {
+      return { ...map, [key]: (map[key] || 0) + by };
+    }
+
+    function BondEnergyApp() {
+      const [activeTab, setActiveTab] = useState("work");
+      const [library, setLibrary] = useState(DEFAULT_BOND_LIBRARY);
+      const [broken, setBroken] = useState([]);
+      const [formed, setFormed] = useState([]);
+      const [newBond, setNewBond] = useState(Object.keys(DEFAULT_BOND_LIBRARY)[0]);
+      const [newCount, setNewCount] = useState(1);
+      const [studentNote, setStudentNote] = useState("");
+      const [showHints, setShowHints] = useState(true);
+      const [showAtomLabels, setShowAtomLabels] = useState(true);
+
+      // For "Build from Structures"
+      const [selectedRxnKey, setSelectedRxnKey] = useState("none");
+      const [structBroken, setStructBroken] = useState({});
+      const [structFormed, setStructFormed] = useState({});
+      const [reactantsGuess, setReactantsGuess] = useState("");
+      const [productsGuess, setProductsGuess] = useState("");
+      const [calcFeedback, setCalcFeedback] = useState("");
+      const [studentCalcMode, setStudentCalcMode] = useState(true);
+
+      const bonds = Object.keys(library).sort();
+
+      const brokenTotal = useMemo(
+        () => broken.reduce((sum, e) => sum + (library[e.bond] || 0) * e.count, 0),
+        [broken, library]
+      );
+      const formedTotal = useMemo(
+        () => formed.reduce((sum, e) => sum + (library[e.bond] || 0) * e.count, 0),
+        [formed, library]
+      );
+      const deltaH = brokenTotal - formedTotal;
+
+      function addEntry(which) {
+        const entry = {
+          id: Math.random().toString(36).slice(2),
+          bond: newBond,
+          count: Math.max(1, Math.floor(newCount || 1)),
+        };
+        if (which === "broken") setBroken((list) => [...list, entry]);
+        else setFormed((list) => [...list, entry]);
       }
 
-      // Reactants top row
-      reac.reactants.forEach((m,idx)=> drawMol(m,"#2563eb",idx,false));
-      // Products bottom row
-      reac.products.forEach((m,idx)=> drawMol(m,"#16a34a",idx,true));
+      function removeEntry(which, id) {
+        if (which === "broken") setBroken((list) => list.filter((e) => e.id !== id));
+        else setFormed((list) => list.filter((e) => e.id !== id));
+      }
 
-      const container = document.getElementById("svg-container");
-      container.innerHTML="";
-      container.append(svg);
+      function resetAll() {
+        setBroken([]);
+        setFormed([]);
+        setStructBroken({});
+        setStructFormed({});
+        setStudentNote("");
+        setReactantsGuess("");
+        setProductsGuess("");
+        setCalcFeedback("");
+      }
+
+      function onClickReactantBond(type) {
+        setStructBroken((m) => bumpMap(m, type));
+      }
+
+      function onClickProductBond(type) {
+        setStructFormed((m) => bumpMap(m, type));
+      }
+
+      function sendStructureCountsToCalculator() {
+        const brokenEntries = Object.entries(structBroken).map(([bond, count]) => ({
+          id: Math.random().toString(36).slice(2),
+          bond,
+          count,
+        }));
+        const formedEntries = Object.entries(structFormed).map(([bond, count]) => ({
+          id: Math.random().toString(36).slice(2),
+          bond,
+          count,
+        }));
+        setBroken(brokenEntries);
+        setFormed(formedEntries);
+      }
+
+      function mapsEqual(a, b) {
+        const ak = Object.keys(a);
+        const bk = Object.keys(b);
+        if (ak.length !== bk.length) return false;
+        for (const k of ak) {
+          if (a[k] !== b[k]) return false;
+        }
+        return true;
+      }
+
+      const rxn = selectedRxnKey === "none" ? null : REACTIONS[selectedRxnKey];
+
+      const reactantsEnergyTrue = useMemo(
+        () => Object.entries(structBroken)
+          .reduce((sum, [bond, count]) => sum + (library[bond] || 0) * count, 0),
+        [structBroken, library]
+      );
+      const productsEnergyTrue = useMemo(
+        () => Object.entries(structFormed)
+          .reduce((sum, [bond, count]) => sum + (library[bond] || 0) * count, 0),
+        [structFormed, library]
+      );
+
+      const calcsCorrect = useMemo(() => {
+        const rg = Number(reactantsGuess);
+        const pg = Number(productsGuess);
+        if (Number.isNaN(rg) || Number.isNaN(pg)) return false;
+        return Math.round(rg) === Math.round(reactantsEnergyTrue) &&
+               Math.round(pg) === Math.round(productsEnergyTrue);
+      }, [reactantsGuess, productsGuess, reactantsEnergyTrue, productsEnergyTrue]);
+
+      return (
+        <div className="min-h-screen w-full p-6 md:p-10">
+          <div className="max-w-6xl mx-auto grid gap-6">
+            <header className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">
+                  Bond Energy Interactive Model
+                </h1>
+                <p className="text-sm text-slate-600">
+                  Compute ΔH ≈ ΣD(bonds broken) − ΣD(bonds formed). Students identify exothermic vs endothermic reactions by modeling bond breaking and bond making.
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showHints}
+                    onChange={(e) => setShowHints(e.target.checked)}
+                  />
+                  <span>Hints</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showAtomLabels}
+                    onChange={(e) => setShowAtomLabels(e.target.checked)}
+                  />
+                  <span>Atom labels</span>
+                </label>
+                <button
+                  onClick={resetAll}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md border bg-white text-sm shadow-sm hover:bg-slate-50"
+                >
+                  Reset
+                </button>
+              </div>
+            </header>
+
+            {/* simple tabs */}
+            <div className="border-b flex gap-4 text-sm">
+              <button
+                className={`pb-2 border-b-2 ${activeTab === "work" ? "border-sky-500 font-semibold" : "border-transparent text-slate-500"}`}
+                onClick={() => setActiveTab("work")}
+              >
+                Build & Calculate
+              </button>
+              <button
+                className={`pb-2 border-b-2 ${activeTab === "structures" ? "border-sky-500 font-semibold" : "border-transparent text-slate-500"}`}
+                onClick={() => setActiveTab("structures")}
+              >
+                Build from Structures
+              </button>
+              <button
+                className={`pb-2 border-b-2 ${activeTab === "library" ? "border-sky-500 font-semibold" : "border-transparent text-slate-500"}`}
+                onClick={() => setActiveTab("library")}
+              >
+                Bond-Energy Table
+              </button>
+            </div>
+
+            {/* TAB: Build & Calculate */}
+            {activeTab === "work" && (
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 border rounded-lg bg-white shadow-sm p-4 grid gap-4">
+                  <h2 className="font-semibold text-lg mb-1">Reaction Model</h2>
+                  <div className="grid md:grid-cols-5 gap-3 items-end">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm mb-1">Bond type</label>
+                      <select
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        value={newBond}
+                        onChange={(e) => setNewBond(e.target.value)}
+                      >
+                        {bonds.map((b) => (
+                          <option key={b} value={b}>
+                            {b} ({library[b]} kJ/mol)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1">Count (mol of bonds)</label>
+                      <input
+                        className="w-full border rounded px-2 py-1 text-sm"
+                        type="number"
+                        min={1}
+                        value={newCount}
+                        onChange={(e) => setNewCount(parseInt(e.target.value || "1", 10))}
+                      />
+                    </div>
+                    <button
+                      className="px-3 py-2 text-sm rounded-md bg-sky-600 text-white hover:bg-sky-700"
+                      onClick={() => addEntry("broken")}
+                    >
+                      Add to Broken
+                    </button>
+                    <button
+                      className="px-3 py-2 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={() => addEntry("formed")}
+                    >
+                      Add to Formed
+                    </button>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="border rounded-lg p-3">
+                      <h3 className="font-semibold text-sm mb-2">Bonds Broken (Reactants)</h3>
+                      {broken.length === 0 ? (
+                        <p className="text-sm text-slate-500">
+                          Add bonds that must be broken in the reactants.
+                        </p>
+                      ) : (
+                        <ul className="space-y-1 text-sm">
+                          {broken.map((e) => (
+                            <li key={e.id} className="flex justify-between items-center">
+                              <span>
+                                {e.count} × {e.bond} @ {library[e.bond]} =
+                                {" "}
+                                <strong>{(library[e.bond] || 0) * e.count}</strong> kJ
+                              </span>
+                              <button
+                                className="text-xs text-red-500"
+                                onClick={() => removeEntry("broken", e.id)}
+                              >
+                                ✕
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="mt-2 text-right text-sm">
+                        Subtotal: <strong>{brokenTotal}</strong> kJ
+                      </div>
+                    </div>
+
+                    <div className="border rounded-lg p-3">
+                      <h3 className="font-semibold text-sm mb-2">Bonds Formed (Products)</h3>
+                      {formed.length === 0 ? (
+                        <p className="text-sm text-slate-500">
+                          Add bonds that form in the products.
+                        </p>
+                      ) : (
+                        <ul className="space-y-1 text-sm">
+                          {formed.map((e) => (
+                            <li key={e.id} className="flex justify-between items-center">
+                              <span>
+                                {e.count} × {e.bond} @ {library[e.bond]} =
+                                {" "}
+                                <strong>{(library[e.bond] || 0) * e.count}</strong> kJ
+                              </span>
+                              <button
+                                className="text-xs text-red-500"
+                                onClick={() => removeEntry("formed", e.id)}
+                              >
+                                ✕
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="mt-2 text-right text-sm">
+                        Subtotal: <strong>{formedTotal}</strong> kJ
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg p-3 bg-slate-50 flex flex-col gap-2">
+                    <div className="text-lg">
+                      ΔH ≈ <strong>{brokenTotal}</strong> − <strong>{formedTotal}</strong>
+                      {" "} = <span className="text-2xl font-bold">{deltaH} kJ</span>
+                    </div>
+                    {showHints && (
+                      <div className="text-xs text-slate-600">
+                        Positive ΔH → endothermic (absorbs heat); negative ΔH → exothermic (releases heat).
+                      </div>
+                    )}
+                    <div className="grid gap-1">
+                      <label className="text-sm">
+                        Explain your model (what bonds did you count and why?)
+                      </label>
+                      <input
+                        className="border rounded px-2 py-1 text-sm"
+                        placeholder="Short justification…"
+                        value={studentNote}
+                        onChange={(e) => setStudentNote(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border rounded-lg bg-white shadow-sm p-4 text-sm grid gap-3">
+                  <h2 className="font-semibold text-base">Quick Starters</h2>
+                  <p className="text-slate-600">
+                    Use these to set up classic practice. Students can still
+                    adjust the counts.
+                  </p>
+                  <button
+                    className="w-full px-3 py-2 rounded-md border bg-slate-50 hover:bg-slate-100"
+                    onClick={() => {
+                      setBroken([
+                        { id: "b1", bond: "C–H", count: 4 },
+                        { id: "b2", bond: "O=O", count: 2 },
+                      ]);
+                      setFormed([
+                        { id: "f1", bond: "C=O", count: 2 },
+                        { id: "f2", bond: "O–H", count: 4 },
+                      ]);
+                    }}
+                  >
+                    Combustion of methane
+                  </button>
+                  <button
+                    className="w-full px-3 py-2 rounded-md border bg-slate-50 hover:bg-slate-100"
+                    onClick={() => {
+                      setBroken([
+                        { id: "b3", bond: "H–H", count: 1 },
+                        { id: "b4", bond: "Cl–Cl", count: 1 },
+                      ]);
+                      setFormed([
+                        { id: "f3", bond: "H–Cl", count: 2 },
+                      ]);
+                    }}
+                  >
+                    Synthesis of HCl
+                  </button>
+                  <button
+                    className="w-full px-3 py-2 rounded-md border bg-slate-50 hover:bg-slate-100"
+                    onClick={() => {
+                      setBroken([]);
+                      setFormed([]);
+                    }}
+                  >
+                    Clear lists
+                  </button>
+                  <div className="pt-2 border-t text-xs text-slate-500">
+                    Tip: Have students label the reaction as exothermic or endothermic
+                    and write a claim supported by their ΔH calculation.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: Build from Structures */}
+            {activeTab === "structures" && (
+              <div className="border rounded-lg bg-white shadow-sm p-4 grid gap-4 text-sm">
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm mb-1">Pick a reaction</label>
+                    <select
+                      className="w-full border rounded px-2 py-1 text-sm"
+                      value={selectedRxnKey}
+                      onChange={(e) => {
+                        setSelectedRxnKey(e.target.value);
+                        setStructBroken({});
+                        setStructFormed({});
+                        setReactantsGuess("");
+                        setProductsGuess("");
+                        setCalcFeedback("");
+                      }}
+                    >
+                      <option value="none">—</option>
+                      <option value="methane">Combustion of methane</option>
+                      <option value="hcl">Synthesis of HCl</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={studentCalcMode}
+                      onChange={(e) => setStudentCalcMode(e.target.checked)}
+                    />
+                    <span>Students must do bond-energy math first</span>
+                  </label>
+                  <button
+                    className={`px-3 py-2 rounded-md text-sm ${
+                      selectedRxnKey === "none" || (studentCalcMode && !calcsCorrect)
+                        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                        : "bg-indigo-600 text-white hover:bg-indigo-700"
+                    }`}
+                    disabled={selectedRxnKey === "none" || (studentCalcMode && !calcsCorrect)}
+                    onClick={sendStructureCountsToCalculator}
+                  >
+                    Send to Calculator
+                  </button>
+                </div>
+
+                {rxn ? (
+                  <>
+                    <div className="text-slate-700">
+                      <span className="font-medium">Equation:</span>{" "}
+                      {rxn.equation}
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6 border-t pt-4">
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          Reactants — click each bond you see
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {rxn.reactants.map((m, i) => {
+                            const Comp = m.component;
+                            const times = m.multiplier || 1;
+                            return (
+                              <div key={i} className="grid gap-1">
+                                <div className="text-xs text-slate-500">{m.label}</div>
+                                {Array.from({ length: times }).map((_, j) => (
+                                  <Comp
+                                    key={j}
+                                    onClickBond={onClickReactantBond}
+                                    showLabels={showAtomLabels}
+                                  />
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-600">
+                          Broken counts so far:{" "}
+                          {Object.keys(structBroken).length === 0
+                            ? "(none)"
+                            : Object.entries(structBroken)
+                                .map(([k, v]) => `${v}× ${k}`)
+                                .join(", ")}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="font-semibold mb-2">
+                          Products — click each bond you see
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {rxn.products.map((m, i) => {
+                            const Comp = m.component;
+                            const times = m.multiplier || 1;
+                            return (
+                              <div key={i} className="grid gap-1">
+                                <div className="text-xs text-slate-500">{m.label}</div>
+                                {Array.from({ length: times }).map((_, j) => (
+                                  <Comp
+                                    key={j}
+                                    onClickBond={onClickProductBond}
+                                    showLabels={showAtomLabels}
+                                  />
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-600">
+                          Formed counts so far:{" "}
+                          {Object.keys(structFormed).length === 0
+                            ? "(none)"
+                            : Object.entries(structFormed)
+                                .map(([k, v]) => `${v}× ${k}`)
+                                .join(", ")}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-4 items-start text-xs md:text-sm">
+                      <div>
+                        Target broken:{" "}
+                        {Object.entries(rxn.expectedBroken)
+                          .map(([k, v]) => `${v}× ${k}`)
+                          .join(", ")}
+                      </div>
+                      <div>
+                        Target formed:{" "}
+                        {Object.entries(rxn.expectedFormed)
+                          .map(([k, v]) => `${v}× ${k}`)
+                          .join(", ")}
+                      </div>
+                      <div className="font-medium">
+                        {mapsEqual(rxn.expectedBroken, structBroken) &&
+                        mapsEqual(rxn.expectedFormed, structFormed)
+                          ? "✔ Counts match — now do the math below."
+                          : "✱ Keep clicking until your bond counts match the targets."}
+                      </div>
+                    </div>
+
+                    {studentCalcMode && (
+                      <div className="border rounded-lg p-3 bg-slate-50 grid gap-3 text-sm">
+                        <h3 className="font-semibold text-sm">Your bond-energy calculations</h3>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs mb-1">
+                              Reactants energy (kJ) — sum of bonds broken
+                            </label>
+                            <input
+                              type="number"
+                              className="w-full border rounded px-2 py-1 text-sm"
+                              placeholder="e.g., 1737"
+                              value={reactantsGuess}
+                              onChange={(e) => setReactantsGuess(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs mb-1">
+                              Products energy (kJ) — sum of bonds formed
+                            </label>
+                            <input
+                              type="number"
+                              className="w-full border rounded px-2 py-1 text-sm"
+                              placeholder="e.g., 2320"
+                              value={productsGuess}
+                              onChange={(e) => setProductsGuess(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            className="px-3 py-1.5 text-xs rounded-md border bg-white hover:bg-slate-50"
+                            onClick={() => {
+                              if (calcsCorrect) {
+                                setCalcFeedback("✔ Looks correct — you can Send to Calculator.");
+                              } else {
+                                setCalcFeedback("✱ Not matching yet. Recheck your counts and bond energies.");
+                              }
+                            }}
+                          >
+                            Check my numbers
+                          </button>
+                          <span
+                            className={
+                              "text-xs " +
+                              (calcsCorrect ? "text-emerald-600" : "text-slate-600")
+                            }
+                          >
+                            {calcFeedback}
+                          </span>
+                        </div>
+                        {showHints && (
+                          <div className="text-xs text-slate-600">
+                            Teacher key (based on your clicks): Reactants total ={" "}
+                            <b>{reactantsEnergyTrue}</b> kJ; Products total ={" "}
+                            <b>{productsEnergyTrue}</b> kJ.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-600">
+                    Pick a reaction to reveal molecule diagrams. Students click bonds
+                    to build a count, then use the bond-energy table to calculate
+                    the energy of reactants and products. When their math is correct,
+                    they can send the counts into the main calculator tab.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* TAB: Bond table */}
+            {activeTab === "library" && (
+              <div className="border rounded-lg bg-white shadow-sm p-4 grid gap-3 text-sm">
+                <h2 className="font-semibold text-base">Bond-Energy Table (kJ/mol)</h2>
+                <p className="text-slate-600 text-xs">
+                  You can edit these values to match your textbook or handout.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {Object.entries(library).sort(([a],[b]) => a.localeCompare(b)).map(([bond, energy]) => (
+                    <div
+                      key={bond}
+                      className="flex items-center justify-between gap-2 border rounded-lg px-2 py-1"
+                    >
+                      <span className="font-mono text-sm">{bond}</span>
+                      <input
+                        type="number"
+                        className="w-24 border rounded px-1 py-0.5 text-xs"
+                        value={energy}
+                        onChange={(e) =>
+                          setLibrary({ ...library, [bond]: Number(e.target.value || 0) })
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500 pt-1">
+                  Students use: energy of side = Σ (bond count × bond energy).
+                </p>
+              </div>
+            )}
+
+            <footer className="text-xs text-slate-400 text-center pt-4">
+              Name: _____________ &nbsp;&nbsp; Period: ________ &nbsp; | &nbsp; ΔH from bonds broken vs formed • Exothermic vs Endothermic
+            </footer>
+          </div>
+        </div>
+      );
     }
 
-    function renderPresets(){
-      const div=document.getElementById("preset-buttons");
-      div.innerHTML="";
-      Object.entries(reactions).forEach(([id,obj])=>{
-        const btn=el("button",{
-          className:"w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200",
-          textContent:obj.name
-        });
-        btn.onclick=()=>{
-          document.getElementById("molecule-panel").classList.remove("hidden");
-          drawReaction(obj);
-        };
-        div.append(btn);
-      });
-    }
-
-    renderPresets();
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<BondEnergyApp />);
   </script>
 </body>
 </html>
