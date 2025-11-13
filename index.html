@@ -38,7 +38,11 @@
     <!-- Step 2 -->
     <div id="molecule-panel" class="bg-white rounded-2xl shadow p-4 hidden">
       <h2 class="font-semibold mb-4">Step 2 — Model Breaking and Forming Bonds</h2>
-      <div id="svg-container" class="flex justify-center"></div>
+      <!-- bigger, boxed, scrollable if needed -->
+      <div
+        id="svg-container"
+        class="flex justify-center bg-slate-50 rounded-xl border border-slate-200 p-4 overflow-x-auto min-h-[260px]"
+      ></div>
       <div class="flex justify-center gap-4 mt-4">
         <button id="break-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Break Bonds</button>
         <button id="form-btn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Form Bonds</button>
@@ -148,54 +152,102 @@
     };
 
     const el = (t,a={}) => Object.assign(document.createElement(t),a);
-    let bonds=[];
 
     function drawReaction(reac){
-      const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
-      svg.setAttribute("width","820");
-      svg.setAttribute("height","200");
-      bonds=[];
+      const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+      // Wider and taller drawing area
+      svg.setAttribute("viewBox","0 0 1000 260");
+      svg.setAttribute("width","100%");
+      svg.setAttribute("height","260");
+
       const atomColors={H:"#ffffff",C:"#9ca3af",O:"#ef4444",N:"#3b82f6",Cl:"#22c55e"};
-      function drawMol(mol,color,offsetX=0){
-        const center=mol.atoms[0]; const r=40;
-        const angles=[0,120,240,60,180,300]; let i=0;
-        const placed=[{...center,x:center.x+offsetX,y:center.y}];
+
+      // labels for rows
+      const labelReact = document.createElementNS("http://www.w3.org/2000/svg","text");
+      labelReact.setAttribute("x","20");
+      labelReact.setAttribute("y","30");
+      labelReact.setAttribute("fill","#0f172a");
+      labelReact.setAttribute("font-size","16");
+      labelReact.setAttribute("font-weight","600");
+      labelReact.textContent = "Reactants";
+      svg.append(labelReact);
+
+      const labelProd = document.createElementNS("http://www.w3.org/2000/svg","text");
+      labelProd.setAttribute("x","20");
+      labelProd.setAttribute("y","145");
+      labelProd.setAttribute("fill","#0f172a");
+      labelProd.setAttribute("font-size","16");
+      labelProd.setAttribute("font-weight","600");
+      labelProd.textContent = "Products";
+      svg.append(labelProd);
+
+      // draw a molecule at a given column and row (reactant or product)
+      function drawMol(mol,color,colIndex,isProduct=false){
+        const centerX = 150 + colIndex*200;   // spacing left-right
+        const centerY = isProduct ? 190 : 75; // top row vs bottom row
+        const center = {x:centerX,y:centerY,label:mol.atoms[0].label};
+        const r = 70; // distance for bonded atoms
+
+        const angles=[0,120,240,60,180,300];
+        let i=0;
+        const placed=[center];
+
         mol.bonds.forEach(b=>{
-          const base=placed[0];
+          const base=center;
           const th=(angles[i++]*Math.PI)/180;
-          const x=base.x+r*Math.cos(th),y=base.y+r*Math.sin(th);
+          const x=base.x+r*Math.cos(th), y=base.y+r*Math.sin(th);
           const a2={x,y,label:b[1]};
           placed.push(a2);
           const line=document.createElementNS("http://www.w3.org/2000/svg","line");
           line.setAttribute("x1",base.x); line.setAttribute("y1",base.y);
           line.setAttribute("x2",a2.x); line.setAttribute("y2",a2.y);
-          line.setAttribute("stroke",color); line.setAttribute("stroke-width","3");
+          line.setAttribute("stroke",color);
+          line.setAttribute("stroke-width","4");
           svg.append(line);
         });
+
         placed.forEach(a=>{
           const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
           c.setAttribute("cx",a.x); c.setAttribute("cy",a.y);
-          c.setAttribute("r","14"); c.setAttribute("fill",atomColors[a.label]||"#e5e7eb");
-          c.setAttribute("stroke","#334155"); svg.append(c);
+          c.setAttribute("r","22");
+          c.setAttribute("fill",atomColors[a.label]||"#e5e7eb");
+          c.setAttribute("stroke","#1f2937");
+          c.setAttribute("stroke-width","2");
+          svg.append(c);
+
           const t=document.createElementNS("http://www.w3.org/2000/svg","text");
-          t.setAttribute("x",a.x-5); t.setAttribute("y",a.y+5); t.textContent=a.label;
+          t.setAttribute("x",a.x-9);
+          t.setAttribute("y",a.y+6);
+          t.setAttribute("fill","#0f172a");
+          t.setAttribute("font-size","18");
+          t.setAttribute("font-weight","700");
+          t.textContent=a.label;
           svg.append(t);
         });
       }
-      let xOffset=0;
-      reac.reactants.forEach(m=>{drawMol(m,"#2563eb",xOffset);xOffset+=150});
-      xOffset+=60;
-      reac.products.forEach(m=>{drawMol(m,"#16a34a",xOffset);xOffset+=150});
-      document.getElementById("svg-container").innerHTML="";
-      document.getElementById("svg-container").append(svg);
+
+      // Reactants top row
+      reac.reactants.forEach((m,idx)=> drawMol(m,"#2563eb",idx,false));
+      // Products bottom row
+      reac.products.forEach((m,idx)=> drawMol(m,"#16a34a",idx,true));
+
+      const container = document.getElementById("svg-container");
+      container.innerHTML="";
+      container.append(svg);
     }
 
     function renderPresets(){
       const div=document.getElementById("preset-buttons");
       div.innerHTML="";
       Object.entries(reactions).forEach(([id,obj])=>{
-        const btn=el("button",{className:"w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200",textContent:obj.name});
-        btn.onclick=()=>{document.getElementById("molecule-panel").classList.remove("hidden");drawReaction(obj);};
+        const btn=el("button",{
+          className:"w-full text-left p-3 rounded-lg bg-slate-100 hover:bg-slate-200",
+          textContent:obj.name
+        });
+        btn.onclick=()=>{
+          document.getElementById("molecule-panel").classList.remove("hidden");
+          drawReaction(obj);
+        };
         div.append(btn);
       });
     }
